@@ -46,8 +46,14 @@ Requirements
 - Star Wars: Zero Company
 - UE4SS with the delayed game-thread action API
   (ExecuteInGameThreadWithDelay, RetriggerableExecuteInGameThreadWithDelay,
-  MakeActionHandle, CancelDelayedAction, IsValidDelayedActionHandle, and
-  IsDelayedActionActive)
+  MakeActionHandle, CancelDelayedAction, IsValidDelayedActionHandle,
+  IsDelayedActionActive, and UnregisterHook)
+
+Hot reload unregisters tracked hooks with both IDs and cancels owned actions.
+The optional ClearAllDelayedActions startup sweep affects this mod only.
+Set EnhancedDatabankClearDelayedActionsOnReload = false before reload to disable
+the sweep; tracked cancellation remains enabled. Restart the game once when
+upgrading from a version without the hook registry.
 
 The Steam builds listed in the package metadata are the tested baseline. Other
 game builds and launchers should be treated as unverified.

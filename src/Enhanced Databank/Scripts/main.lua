@@ -3,6 +3,19 @@ local MOD = "EnhancedDatabank"
 local VERSION = "1.0.0"
 local PREFIX = "[" .. MOD .. "]"
 
+do
+    local source = debug.getinfo(1, "S").source:gsub("^@", "")
+    local directory = source:match("^(.*[/\\])")
+    if directory then package.path = directory .. "?.lua;" .. package.path end
+end
+package.loaded["reload_runtime"] = nil
+EnhancedDatabankRuntime = require("reload_runtime").start("EnhancedDatabankRuntime", {
+    clear_all = EnhancedDatabankClearDelayedActionsOnReload ~= false,
+})
+-- This module caches page UObjects. Rebuild that cache, then adopt live buttons.
+package.loaded["selected_move_button"] = nil
+package.loaded["debug_keybinds"] = nil
+
 local function try_call(fn)
     local ok, result = pcall(fn)
     if ok then return result, nil end
@@ -32,8 +45,7 @@ local function uobject_is_valid(value)
     return err == nil and valid == true
 end
 
-EnhancedDatabankActions = EnhancedDatabankActions or { groups = {} }
-EnhancedDatabankActions.groups = EnhancedDatabankActions.groups or {}
+EnhancedDatabankActions = { groups = {}, runtime = EnhancedDatabankRuntime }
 
 function EnhancedDatabankActions.cancel_group(group, reason)
     local actions = EnhancedDatabankActions.groups[group]
@@ -54,7 +66,10 @@ function EnhancedDatabankActions.cancel_group(group, reason)
             local did_cancel = select(1, try_call(function()
                 return CancelDelayedAction(handle)
             end))
-            if did_cancel == true then cancelled = cancelled + 1 end
+            if did_cancel == true then
+                cancelled = cancelled + 1
+                EnhancedDatabankRuntime:finish_action(handle)
+            end
         end
     end
 
@@ -80,19 +95,22 @@ function EnhancedDatabankActions.cancel_all(reason)
 end
 
 function EnhancedDatabankActions.schedule_after(group, delay_ms, callback, ...)
+    local runtime = EnhancedDatabankRuntime
+    if not runtime.alive then return nil end
     local captured_count = select("#", ...)
     local captured_uobjects = { ... }
-    local handle = nil
+    local handle = MakeActionHandle()
     local actions = nil
 
     if group ~= nil then
-        handle = MakeActionHandle()
         actions = EnhancedDatabankActions.groups[group] or {}
         EnhancedDatabankActions.groups[group] = actions
         actions[handle] = true
     end
 
     local function invoke()
+        runtime:finish_action(handle)
+        if not runtime.alive then return end
         if actions ~= nil then
             actions[handle] = nil
             if next(actions) == nil and EnhancedDatabankActions.groups[group] == actions then
@@ -111,16 +129,16 @@ function EnhancedDatabankActions.schedule_after(group, delay_ms, callback, ...)
         callback()
     end
 
-    if handle ~= nil then
-        ExecuteInGameThreadWithDelay(handle, math.max(0, tonumber(delay_ms) or 0), invoke)
-        return handle
-    end
-    return ExecuteInGameThreadWithDelay(math.max(0, tonumber(delay_ms) or 0), invoke)
+    runtime:track_action(handle)
+    ExecuteInGameThreadWithDelay(handle, math.max(0, tonumber(delay_ms) or 0), invoke)
+    return handle
 end
 
 local function run_on_game_thread_after(delay_ms, callback, ...)
     return EnhancedDatabankActions.schedule_after(nil, delay_ms, callback, ...)
 end
+
+run_on_game_thread_after(0, function() EnhancedDatabankRuntime:cleanup_ui() end)
 
 function EnhancedDatabankActions.run_group_after(group, delay_ms, callback, ...)
     return EnhancedDatabankActions.schedule_after(group, delay_ms, callback, ...)
@@ -237,6 +255,13 @@ local function log(message)
             log_file:write(line .. "\n")
             log_file:flush()
         end)
+    end
+end
+
+EnhancedDatabankRuntime.on_teardown = function()
+    if log_file then
+        log_file:close()
+        log_file = nil
     end
 end
 
@@ -2085,6 +2110,17 @@ local function reset_folder_popup_state()
     folder_popup_state.sourcePoolName = nil
 end
 
+EnhancedDatabankRuntime.ui_cleanup = function()
+    local popup = unwrap(folder_popup_state.widget)
+    folder_popup_state.suppressResult = true
+    if uobject_is_valid(popup) then
+        clear_named_slot_content(popup, "AboveText")
+        clear_named_slot_content(popup, "Belowtext")
+        pcall(function() popup:OnCloseWindow() end)
+    end
+    reset_folder_popup_state()
+end
+
 local function gameplay_tag_value(tag)
     tag = unwrap(tag)
     if tag == nil then return nil end
@@ -2116,7 +2152,7 @@ local handle_folder_dialog_result
 local function ensure_folder_dialog_result_hook()
     if folder_dialog_result_hook_registered then return true end
     local ok, hook_id = pcall(function()
-        return RegisterHook(
+        return EnhancedDatabankRuntime:register_hook(
             "/Game/Game/UI/Common/WBP_GenericPopupMessage.WBP_GenericPopupMessage_C:BP_OnHideDialog",
             function(self, result)
                 if handle_folder_dialog_result ~= nil then handle_folder_dialog_result(self, result) end
@@ -2811,7 +2847,7 @@ end
 local function install_folder_button_click_hook()
     if folder_button_click_hook_registered then return true end
     local ok, hook_id = pcall(function()
-        return RegisterHook(
+        return EnhancedDatabankRuntime:register_hook(
             "/Script/CommonUI.CommonButtonBase:HandleButtonClicked",
             function(self)
                 local button = unwrap(self)
@@ -3024,12 +3060,12 @@ end
 local function install_action_hover_hooks()
     if action_hover_hooks_registered then return true end
     local ok_hover, hover_id = pcall(function()
-        return RegisterHook("/Script/CommonUI.CommonButtonBase:BP_OnHovered", function(context, ...)
+        return EnhancedDatabankRuntime:register_hook("/Script/CommonUI.CommonButtonBase:BP_OnHovered", function(context, ...)
             set_registered_action_icon_state(context, true)
         end)
     end)
     local ok_unhover, unhover_id = pcall(function()
-        return RegisterHook("/Script/CommonUI.CommonButtonBase:BP_OnUnhovered", function(context, ...)
+        return EnhancedDatabankRuntime:register_hook("/Script/CommonUI.CommonButtonBase:BP_OnUnhovered", function(context, ...)
             set_registered_action_icon_state(context, false)
         end)
     end)
@@ -3062,15 +3098,19 @@ local function ensure_create_folder_control(page)
         folder_ui_state.moveClickScheduled = false
     end
 
-    if folder_ui_state.button ~= nil then
+    if uobject_is_valid(folder_ui_state.button) then
         local parent = select(1, try_call(function() return unwrap(folder_ui_state.button:GetParent()) end))
         if parent ~= nil then return true end
     end
 
     local adopted = find_tree_widget(page, CREATE_FOLDER_BUTTON_MARKER)
-    if adopted ~= nil then
+    if uobject_is_valid(adopted) then
         register_folder_button(adopted)
         folder_ui_state.row = select(1, try_call(function() return unwrap(adopted:GetParent()) end))
+        folder_ui_state.iconCanvas = find_tree_widget(page, "EnhancedDatabank_FolderPlusCanvas")
+        folder_ui_state.iconOverlay = find_tree_widget(page, "EnhancedDatabank_CreateFolderOverlay")
+        style_create_folder_icon_button(page, adopted)
+        set_folder_icon_color(FOLDER_ICON_COLOR_NORMAL, "normal")
         return true
     end
 
@@ -3432,7 +3472,11 @@ schedule_refresh = function(reason, delay_ms)
 
     refresh_generation = refresh_generation + 1
     local generation = refresh_generation
+    local runtime = EnhancedDatabankRuntime
+    runtime:track_action(refresh_action_handle)
     RetriggerableExecuteInGameThreadWithDelay(refresh_action_handle, delay_ms or 100, function()
+        runtime:finish_action(refresh_action_handle)
+        if not runtime.alive then return end
         if generation ~= refresh_generation then return end
         refresh_visible_pools(reason)
     end)
@@ -3510,7 +3554,7 @@ local function install_master_activation_hook()
     end
 
     local ok, hook_id = pcall(function()
-        return RegisterHook(MASTER_ACTIVATED_PATH, function(context, ...)
+        return EnhancedDatabankRuntime:register_hook(MASTER_ACTIVATED_PATH, function(context, ...)
             local master = unwrap(context)
             local identity = object_name(master)
             if string.find(identity, "/Engine/Transient", 1, true) then
@@ -3538,7 +3582,7 @@ local function install_page_activation_hook()
     end
 
     local ok, hook_id = pcall(function()
-        return RegisterHook(PAGE_ACTIVATED_PATH, function(context, ...)
+        return EnhancedDatabankRuntime:register_hook(PAGE_ACTIVATED_PATH, function(context, ...)
             local page = unwrap(context)
             if page_is_humanoid(page) then
                 log("Humanoid Character Databank page BP_OnActivated; scheduling authoritative UI rebuild.")
@@ -3577,7 +3621,7 @@ local function install_character_clicked_hook()
         return false, "live Character row not loaded"
     end
     local ok, hook_id = pcall(function()
-        return RegisterHook(CHARACTER_CLICKED_PATH, function(context, ...)
+        return EnhancedDatabankRuntime:register_hook(CHARACTER_CLICKED_PATH, function(context, ...)
             local row = unwrap(context)
             if row == nil then return end
             local info = folder_ui_state.moveRowActions
@@ -3612,7 +3656,7 @@ local function install_folder_clicked_hook()
         return false, "live Character Pool widget not loaded"
     end
     local ok, hook_id = pcall(function()
-        return RegisterHook(FOLDER_CLICKED_PATH, function(context, ...)
+        return EnhancedDatabankRuntime:register_hook(FOLDER_CLICKED_PATH, function(context, ...)
             -- Re-scan only after the native collapse/expand click has unwound.
             -- This does not rebuild folders or rows; it merely decorates any row
             -- UObjects the native folder regenerated while expanding.
@@ -3743,7 +3787,7 @@ attempt_install_databank_lifecycle_hooks("initial mod load")
 -- Blueprint override is skipped/reused. Filter immediately to the actual live
 -- humanoid Character Databank page before doing any Databank work.
 local common_hook_ok, common_pre_id, common_post_id = pcall(function()
-    return RegisterHook(
+    return EnhancedDatabankRuntime:register_hook(
         "/Script/CommonUI.CommonActivatableWidget:ActivateWidget",
         function(context, ...) end,
         function(context, ...)
@@ -3763,7 +3807,7 @@ end
 
 local function hook_native_refresh(path, label)
     local ok, pre_id, post_id = pcall(function()
-        return RegisterHook(path,
+        return EnhancedDatabankRuntime:register_hook(path,
             function(context, ...) end,
             function(context, ...)
                 log(label .. " completed; scheduling authoritative UI rebuild.")
@@ -3796,6 +3840,7 @@ if LOG_PATH then log("Dedicated log: " .. LOG_PATH) end
 if source_resolution_note then log(source_resolution_note) end
 
 require("debug_keybinds").install({
+    register = function(...) return EnhancedDatabankRuntime:register_keybind(...) end,
     log = log,
     refresh = function()
         run_on_game_thread_after(0, function() refresh_visible_pools("manual Shift+F7") end)

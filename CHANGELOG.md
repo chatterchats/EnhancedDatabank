@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Added reload teardown with a central hook registry retaining both UE4SS hook
+  IDs, cancellation of every owned action (including refresh), and optional
+  current-mod delayed-action clearing. Retired callbacks are disabled.
+- Rebind debug keys without duplicate registrations, close the previous log,
+  retire old popup content on the game thread, and restore existing Move/Create
+  Folder controls and icon references during reinitialization.
+- Added mocked reload and scheduler regression tests.
 - Added an owned, cancellable delayed-action group for lifecycle-hook
   installation and cold-entry catch-up. Pending retries are now queried and
   cancelled when the installer restarts or an activation-owned render wins.

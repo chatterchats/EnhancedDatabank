@@ -32,8 +32,16 @@ It does not add folders to the Astromech page.
 - A working [UE4SS](https://docs.ue4ss.com/dev/installation-guide.html)
   installation for the game with the delayed game-thread action API
   (`ExecuteInGameThreadWithDelay`, `RetriggerableExecuteInGameThreadWithDelay`,
-  `MakeActionHandle`, `CancelDelayedAction`, `IsValidDelayedActionHandle`, and
-  `IsDelayedActionActive`)
+  `MakeActionHandle`, `CancelDelayedAction`, `IsValidDelayedActionHandle`,
+  `IsDelayedActionActive`, and `UnregisterHook`)
+
+Hot reload retains both hook IDs and cancels owned actions during teardown.
+When available, `ClearAllDelayedActions()` also clears this mod's leftover
+actions at startup; set `EnhancedDatabankClearDelayedActionsOnReload = false`
+before reloading to disable that optional sweep. Tracked-handle cancellation
+still runs. Existing buttons are adopted during Databank reinitialization.
+Restart the game once when upgrading from versions that did not retain hook
+IDs; those older registrations cannot be recovered by the new registry.
 
 The current metadata identifies Steam as the supported launcher and lists game
 builds `25134257` and `24874058` as tested. Later builds may work but should be
