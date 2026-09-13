@@ -1,0 +1,122 @@
+name: Release to Nexus Mods
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish_to_nexus:
+        description: Publish the validated package to the configured Nexus file
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nexus-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Validate, package, and optionally upload
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Read release metadata
+        id: release
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          import uuid
+          from pathlib import Path
+
+          metadata_files = (
+              Path("src/Enhanced Databank/modinfo.json"),
+              Path("src/Enhanced Databank/zcom-mod.json"),
+          )
+          versions = {}
+          for metadata_file in metadata_files:
+              with metadata_file.open(encoding="utf-8") as stream:
+                  version = json.load(stream).get("version")
+              if not isinstance(version, str) or not version.strip():
+                  raise SystemExit(f"Missing version in {metadata_file}")
+              versions[metadata_file] = version.strip()
+
+          if len(set(versions.values())) != 1:
+              details = ", ".join(f"{path}: {version}" for path, version in versions.items())
+              raise SystemExit(f"Metadata versions do not match: {details}")
+
+          version = next(iter(versions.values()))
+          if not re.fullmatch(r"\d+\.\d+\.\d+", version):
+              raise SystemExit(f"Version must use #.#.# format, got {version!r}")
+
+          main_text = Path("src/Enhanced Databank/Scripts/main.lua").read_text(encoding="utf-8")
+          main_match = re.search(r'^local VERSION = "([^"]+)"$', main_text, re.MULTILINE)
+          if main_match is None or main_match.group(1) != version:
+              raise SystemExit("main.lua VERSION does not match package metadata")
+
+          changelog_text = Path("CHANGELOG.md").read_text(encoding="utf-8")
+          section = re.search(
+              rf"^## \[{re.escape(version)}\][^\n]*\n(?P<body>.*?)(?=^## \[|\Z)",
+              changelog_text,
+              flags=re.MULTILINE | re.DOTALL,
+          )
+          if section is None or not section.group("body").strip():
+              raise SystemExit(f"CHANGELOG.md has no non-empty [{version}] section")
+          changelog = section.group("body").strip()
+
+          delimiter = f"CHANGELOG_{uuid.uuid4().hex}"
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+              output.write(f"version={version}\n")
+              output.write(f"package_name=Enhanced Databank V{version}.zip\n")
+              output.write(f"changelog<<{delimiter}\n{changelog}\n{delimiter}\n")
+          PY
+
+      - name: Package mod
+        shell: bash
+        env:
+          PACKAGE_NAME: ${{ steps.release.outputs.package_name }}
+        run: |
+          mkdir -p dist
+          (cd src && zip -r "../dist/${PACKAGE_NAME}" "Enhanced Databank")
+          ln "dist/${PACKAGE_NAME}" "Enhanced Databank.zip"
+
+      - name: Retain packaged release
+        uses: actions/upload-artifact@v4
+        with:
+          name: Enhanced-Databank-${{ steps.release.outputs.version }}
+          path: dist/${{ steps.release.outputs.package_name }}
+          if-no-files-found: error
+
+      - name: Validate Nexus configuration
+        if: ${{ inputs.publish_to_nexus }}
+        shell: bash
+        env:
+          NEXUSMODS_API_KEY: ${{ secrets.NEXUSMODS_API_KEY }}
+          NEXUSMODS_MOD_ID: ${{ secrets.NEXUSMODS_MOD_ID }}
+          NEXUSMODS_FILE_ID: ${{ secrets.NEXUSMODS_FILE_ID }}
+        run: |
+          test -n "$NEXUSMODS_API_KEY" || { echo "NEXUSMODS_API_KEY is empty" >&2; exit 1; }
+          test -n "$NEXUSMODS_MOD_ID" || { echo "NEXUSMODS_MOD_ID is empty" >&2; exit 1; }
+          test -n "$NEXUSMODS_FILE_ID" || { echo "NEXUSMODS_FILE_ID is empty" >&2; exit 1; }
+
+      - name: Upload to Nexus Mods
+        if: ${{ inputs.publish_to_nexus }}
+        uses: Nexus-Mods/upload-action@c96019556046053aa26044b44396cd38929daf23
+        with:
+          api_key: ${{ secrets.NEXUSMODS_API_KEY }}
+          file_id: ${{ secrets.NEXUSMODS_FILE_ID }}
+          filename: Enhanced Databank.zip
+          version: ${{ steps.release.outputs.version }}
+          display_name: Enhanced Databank
+          mod_id: ${{ secrets.NEXUSMODS_MOD_ID }}
+          primary_mod_manager_download: true
+          update_mod_version: true
+          changelog: ${{ steps.release.outputs.changelog }}

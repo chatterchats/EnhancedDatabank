@@ -1,0 +1,6 @@
+/debug/
+/dist/
+/*.zip
+*.log
+__pycache__/
+*.pyc

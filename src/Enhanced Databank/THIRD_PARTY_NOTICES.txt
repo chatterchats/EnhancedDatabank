@@ -1,0 +1,12 @@
+Tabler Icons
+============
+The Create Folder, Rename Folder, Delete Folder, and Move Character glyphs follow the Tabler Icons folder-plus, edit, trash, and transfer-vertical design language.
+Tabler Icons is an MIT-licensed open-source icon set.
+
+Project: https://tabler.io/icons
+Repository: https://github.com/tabler/tabler-icons
+License: MIT
+
+The bundled folder-plus.svg/png is retained for attribution and reference. Live controls use native UMG-drawn equivalents.
+
+The native-drawn Move Character glyph also follows the Tabler Icons transfer-vertical visual language; no Tabler asset is loaded at runtime.
