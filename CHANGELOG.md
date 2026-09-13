@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Added fail-closed `IsValid()` checks for every UObject explicitly captured by
+  delayed actions, including widgets, pool ViewModels, character ViewModels,
+  and dynamically stored destination buttons. Stale callbacks now stop before
+  touching released Unreal objects.
 - Migrated all deferred UI and mutation work to UE4SS's owned delayed
   game-thread action system, avoiding the callback-registry race triggered by
   overlapping `ExecuteWithDelay` and `ExecuteInGameThread` work.

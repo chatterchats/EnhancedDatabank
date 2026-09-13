@@ -15,10 +15,6 @@ if type(ExecuteInGameThreadWithDelay) ~= "function"
     error("Enhanced Databank requires the UE4SS delayed game-thread action system")
 end
 
-local function run_on_game_thread_after(delay_ms, callback)
-    return ExecuteInGameThreadWithDelay(math.max(0, tonumber(delay_ms) or 0), callback)
-end
-
 local function unwrap(value)
     if value == nil then return nil end
     local unwrapped, err = try_call(function() return value:get() end)
@@ -30,11 +26,23 @@ local function uobject_is_valid(value)
     local object = unwrap(value)
     if object == nil then return false end
     local valid, err = try_call(function() return object:IsValid() end)
-    -- IsValid is provided by current UE4SS RemoteObject builds. Preserve
-    -- compatibility with older builds that do not expose it and retain the
-    -- existing non-nil checks in that case.
-    if err ~= nil then return true end
-    return valid == true
+    return err == nil and valid == true
+end
+
+local function run_on_game_thread_after(delay_ms, callback, ...)
+    local captured_count = select("#", ...)
+    local captured_uobjects = { ... }
+    return ExecuteInGameThreadWithDelay(math.max(0, tonumber(delay_ms) or 0), function()
+        for index = 1, captured_count do
+            local captured = captured_uobjects[index]
+            if not uobject_is_valid(captured) then
+                print(PREFIX .. " Skipped delayed action: captured UObject #"
+                    .. tostring(index) .. " is no longer valid.\n")
+                return
+            end
+        end
+        callback()
+    end)
 end
 
 local function object_name(object)
@@ -1659,7 +1667,7 @@ local function install_rename_button_on_folder(page, pool_widget, folder_header,
         if delete_info ~= nil and same_object(delete_info.button, delete_button) then
             style_folder_action_button(delete_button, "DELETE FOLDER")
         end
-    end)
+    end, rename_button, delete_button)
 
     log("Folder action buttons installed at generation: pool='" .. tostring(name)
         .. "' characters=" .. tostring(tonumber(character_count) or 0))
@@ -1930,6 +1938,12 @@ local function schedule_default_pool_row_decoration(pool_widget, rows, source_en
                 local stack = select(1, read_property(live_pool, "BitReactorStackBox_25"))
                 local row = stack and panel_child_at(stack, index - 1) or nil
                 local character_vm = unwrap(rows[index])
+                if character_vm ~= nil and not uobject_is_valid(character_vm) then
+                    log("Default move decoration skipped: captured character ViewModel expired at row="
+                        .. tostring(index - 1))
+                    step(index + 1)
+                    return
+                end
                 local name = character_vm and character_display_name(character_vm) or "<nil>"
                 local guid = character_vm and character_guid_string(character_vm) or nil
                 log("Default move decoration begin: row=" .. tostring(index - 1)
@@ -1953,7 +1967,7 @@ local function schedule_default_pool_row_decoration(pool_widget, rows, source_en
                 else
                     log("Default move decoration complete: rows=" .. tostring(total))
                 end
-        end)
+        end, pool_widget)
     end
 
     if total > 0 then step(1) end
@@ -2069,7 +2083,7 @@ local function create_folder_entry(popup, initial_text)
         end)
     end
     apply()
-    run_on_game_thread_after(1, apply)
+    run_on_game_thread_after(1, apply, entry, editable)
     return entry, editable, nil
 end
 
@@ -2132,14 +2146,14 @@ local function show_folder_dialog(mode, title, body, actions, want_entry, initia
         folder_popup_state.textBox = editable
         run_on_game_thread_after(1, function()
             if folder_popup_state.widget == popup then pcall(function() editable:SetKeyboardFocus() end) end
-        end)
+        end, popup, editable)
     end
 
     run_on_game_thread_after(1, function()
         if folder_popup_state.widget == popup then
             pcall(function() popup:SetVisibility(0); popup:ActivateWidget() end)
         end
-    end)
+    end, popup)
     log("Create Folder native dialog opened: mode=" .. tostring(mode))
     return true
 end
@@ -2438,11 +2452,12 @@ show_move_character_dialog = function(move_info)
     run_on_game_thread_after(80, function()
         if folder_popup_state.widget == nil or not same_object(folder_popup_state.widget, popup) then return end
         for _, info in pairs(folder_ui_state.moveDestinationButtons or {}) do
-            if info.popup ~= nil and same_object(info.popup, popup) then
+            if info.popup ~= nil and same_object(info.popup, popup)
+                and uobject_is_valid(info.button) then
                 style_move_destination_button(info.button, info.targetLabel)
             end
         end
-    end)
+    end, popup)
 
     local _, set_err = try_call(function() return below:SetContent(list) end)
     if set_err ~= nil then
@@ -2652,11 +2667,11 @@ handle_folder_dialog_result = function(widget_value, result_value)
     elseif mode == "rename_folder" and action == "rename" then
         run_on_game_thread_after(120, function()
             perform_rename_folder(target_pool_vm, target_pool_name, captured_text)
-        end)
+        end, target_pool_vm)
     elseif mode == "delete_folder" and action == "delete" then
         run_on_game_thread_after(120, function()
             perform_delete_folder(target_pool_vm, target_pool_name)
-        end)
+        end, target_pool_vm)
     end
 end
 
@@ -2695,12 +2710,17 @@ end
 
 local function schedule_move_character_dialog(move_info, source)
     if move_info == nil or folder_ui_state.moveClickScheduled then return false end
+    local delayed_move_info = {
+        guid = tostring(move_info.guid or ""),
+        name = tostring(move_info.name or "Character"),
+        sourcePoolName = tostring(move_info.sourcePoolName or ""),
+    }
     folder_ui_state.moveClickScheduled = true
     log("Move Character transfer hit-zone clicked via " .. tostring(source or "unknown")
         .. ": '" .. tostring(move_info.name) .. "' source='" .. tostring(move_info.sourcePoolName) .. "'")
     run_on_game_thread_after(1, function()
         folder_ui_state.moveClickScheduled = false
-        show_move_character_dialog(move_info)
+        show_move_character_dialog(delayed_move_info)
     end)
     return true
 end
@@ -2752,7 +2772,7 @@ local function install_folder_button_click_hook()
                         run_on_game_thread_after(125, function()
                             perform_move_character(guid, target, character_name)
                         end)
-                    end)
+                    end, destination_info.popup)
                     return
                 end
 
@@ -2858,9 +2878,11 @@ local function install_folder_button_click_hook()
                 local rename_info = folder_ui_state.renameButtons and folder_ui_state.renameButtons[identity] or nil
                 if rename_info ~= nil then
                     log("Rename Folder edit icon clicked: '" .. tostring(rename_info.name) .. "'")
+                    local target_pool_vm = rename_info.poolVM
+                    local target_pool_name = tostring(rename_info.name or "")
                     run_on_game_thread_after(1, function()
-                        show_rename_folder_dialog(rename_info.poolVM, rename_info.name)
-                    end)
+                        show_rename_folder_dialog(target_pool_vm, target_pool_name)
+                    end, target_pool_vm)
                     return
                 end
 
@@ -2868,10 +2890,12 @@ local function install_folder_button_click_hook()
                 if delete_info ~= nil then
                     log("Delete Folder trash icon clicked: '" .. tostring(delete_info.name)
                         .. "' capturedCount=" .. tostring(delete_info.characterCount))
+                    local target_pool_vm = delete_info.poolVM
+                    local target_pool_name = tostring(delete_info.name or "")
+                    local character_count = tonumber(delete_info.characterCount) or 0
                     run_on_game_thread_after(1, function()
-                        show_delete_folder_dialog(delete_info.poolVM, delete_info.name,
-                            delete_info.characterCount)
-                    end)
+                        show_delete_folder_dialog(target_pool_vm, target_pool_name, character_count)
+                    end, target_pool_vm)
                     return
                 end
 
@@ -3025,7 +3049,7 @@ local function ensure_create_folder_control(page)
             if same_object(folder_ui_state.button, icon_button) then
                 style_create_folder_icon_button(page, icon_button)
             end
-        end)
+        end, page, icon_button)
         log(string.format(
             "Create Folder joined Character Share action row: previousCreateWidth=%.1f createWidth=%.1f iconWidth=%.1f",
             wrapper_width, resized_width, CREATE_FOLDER_ICON_WIDTH))
@@ -3072,7 +3096,7 @@ local function ensure_create_folder_control(page)
     set_folder_icon_color(FOLDER_ICON_COLOR_NORMAL, "normal")
     run_on_game_thread_after(80, function()
         if same_object(folder_ui_state.button, icon_button) then style_create_folder_icon_button(page, icon_button) end
-    end)
+    end, page, icon_button)
     log(string.format("Create Folder icon installed beside Create New: originalWidth=%.1f createWidth=%.1f iconWidth=%.1f",
         original_width, create_width, CREATE_FOLDER_ICON_WIDTH))
     return true
