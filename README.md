@@ -30,7 +30,9 @@ It does not add folders to the Astromech page.
 
 - **Star Wars: Zero Company**
 - A working [UE4SS](https://docs.ue4ss.com/dev/installation-guide.html)
-  installation for the game
+  installation for the game with the delayed game-thread action API
+  (`ExecuteInGameThreadWithDelay`, `RetriggerableExecuteInGameThreadWithDelay`,
+  and `MakeActionHandle`)
 
 The current metadata identifies Steam as the supported launcher and lists game
 builds `25134257` and `24874058` as tested. Later builds may work but should be

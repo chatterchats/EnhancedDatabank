@@ -44,7 +44,9 @@ now-empty folder as part of its normal native behavior.
 Requirements
 ------------
 - Star Wars: Zero Company
-- UE4SS
+- UE4SS with the delayed game-thread action API
+  (ExecuteInGameThreadWithDelay, RetriggerableExecuteInGameThreadWithDelay,
+  and MakeActionHandle)
 
 The Steam builds listed in the package metadata are the tested baseline. Other
 game builds and launchers should be treated as unverified.

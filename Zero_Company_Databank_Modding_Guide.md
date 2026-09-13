@@ -657,6 +657,33 @@ A stable visual approach is to keep injected glyphs hit-test-invisible and let t
 
 Avoid high-frequency timers whose only purpose is to poll hover state on UObjects.
 
+### Use owned game-thread delayed actions
+
+The v1.0.0 pre-release build originally nested `ExecuteWithDelay` around
+`ExecuteInGameThread`. Repeated Move dialogs eventually reproduced UE4SS's
+callback-registry race:
+
+```text
+Lua::Registry::get_function_ref: Ref was not function
+EXCEPTION_ACCESS_VIOLATION reading address 0x2
+```
+
+The crash occurred after several successful moves, while the next destination
+dialog's delayed activation/repaint work was pending. The manager mutation had
+not started. This matched the known `process_simple_actions` re-entry failure
+caused by overlapping legacy callbacks.
+
+Enhanced Databank now uses `ExecuteInGameThreadWithDelay` for one-shot work and
+a `RetriggerableExecuteInGameThreadWithDelay` handle for authoritative refresh
+coalescing. It also removed the 40 ms Create Folder hover polling chain in favor
+of the existing `BP_OnHovered` / `BP_OnUnhovered` hooks.
+
+General rule:
+
+> Never compose `ExecuteWithDelay` and `ExecuteInGameThread` for Databank UI
+> work. Use the owned delayed game-thread action API, coalesce repeated refreshes
+> with a handle, and prefer native events over recurring polling.
+
 ---
 
 ## 20. Mutation Hooks Worth Watching

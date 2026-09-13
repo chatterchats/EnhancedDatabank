@@ -9,6 +9,16 @@ local function try_call(fn)
     return nil, tostring(result)
 end
 
+if type(ExecuteInGameThreadWithDelay) ~= "function"
+    or type(RetriggerableExecuteInGameThreadWithDelay) ~= "function"
+    or type(MakeActionHandle) ~= "function" then
+    error("Enhanced Databank requires the UE4SS delayed game-thread action system")
+end
+
+local function run_on_game_thread_after(delay_ms, callback)
+    return ExecuteInGameThreadWithDelay(math.max(0, tonumber(delay_ms) or 0), callback)
+end
+
 local function unwrap(value)
     if value == nil then return nil end
     local unwrapped, err = try_call(function() return value:get() end)
@@ -104,6 +114,8 @@ local function try_open_log(path)
 end
 
 local LOG_CANDIDATES = {
+    "ue4ss\\Mods\\Enhanced_Databank\\enhanced_databank.log",
+    "ue4ss/Mods/Enhanced_Databank/enhanced_databank.log",
     "ue4ss\\Mods\\EnhancedDatabank\\enhanced_databank.log",
     "ue4ss/Mods/EnhancedDatabank/enhanced_databank.log",
     "ue4ss\\Mods\\Enhanced Databank\\enhanced_databank.log",
@@ -717,7 +729,6 @@ folder_ui_state = {
     moveDestinationButtons = {},
     renderedPools = {},
     moveClickScheduled = false,
-    renameHoverGeneration = 0,
     pendingMove = nil,
 }
 
@@ -741,7 +752,6 @@ local action_hover_hooks_registered = false
 local FOLDER_ICON_COLOR_NORMAL = { R = 0.78, G = 0.74, B = 0.76, A = 1.0 }
 local FOLDER_ICON_COLOR_HOVER = { R = 0.10, G = 0.075, B = 0.085, A = 1.0 }
 local FOLDER_ICON_COLOR = FOLDER_ICON_COLOR_NORMAL
-local folder_hover_generation = 0
 local default_move_decor_generation = 0
 
 local function trim_string(value)
@@ -1113,43 +1123,6 @@ local function set_folder_icon_color(color, state_name)
     return changed > 0
 end
 
-local function start_folder_button_hover_monitor(button)
-    folder_hover_generation = folder_hover_generation + 1
-    local generation = folder_hover_generation
-    folder_ui_state.iconVisualState = nil
-
-    local function tick()
-        if generation ~= folder_hover_generation then return end
-        if folder_ui_state.button == nil or not same_object(folder_ui_state.button, button) then return end
-
-        local parent = select(1, try_call(function() return unwrap(button:GetParent()) end))
-        if parent == nil then return end
-
-        local hovered = false
-        local focused = false
-        pcall(function() hovered = button:IsHovered() == true end)
-        pcall(function() focused = button:HasKeyboardFocus() == true end)
-
-        local active = hovered or focused
-        local wanted_state = active and "hover" or "normal"
-        if folder_ui_state.iconVisualState ~= wanted_state then
-            set_folder_icon_color(
-                active and FOLDER_ICON_COLOR_HOVER or FOLDER_ICON_COLOR_NORMAL,
-                wanted_state
-            )
-        end
-
-        ExecuteWithDelay(40, function()
-            ExecuteInGameThread(tick)
-        end)
-    end
-
-    set_folder_icon_color(FOLDER_ICON_COLOR_NORMAL, "normal")
-    ExecuteWithDelay(40, function()
-        ExecuteInGameThread(tick)
-    end)
-end
-
 local function build_native_folder_plus_icon(page)
     local size_box, size_err = construct_widget(page, "/Script/UMG.SizeBox",
         "EnhancedDatabank_FolderPlusSize")
@@ -1464,59 +1437,6 @@ local function make_move_character_icon_overlay(owner, button, suffix)
     return overlay, icon_canvas, nil
 end
 
-local function start_rename_button_hover_monitor()
-    folder_ui_state.renameHoverGeneration = (folder_ui_state.renameHoverGeneration or 0) + 1
-    local generation = folder_ui_state.renameHoverGeneration
-
-    local function visit_button_map(map)
-        local any_live = false
-        for identity, info in pairs(map or {}) do
-            local button = info and unwrap(info.button) or nil
-            local canvas = info and unwrap(info.iconCanvas) or nil
-            if button ~= nil and canvas ~= nil then
-                local parent = select(1, try_call(function() return unwrap(button:GetParent()) end))
-                if parent ~= nil then
-                    any_live = true
-                    local hovered, focused = false, false
-                    pcall(function() hovered = button:IsHovered() == true end)
-                    pcall(function() focused = button:HasKeyboardFocus() == true end)
-                    local state = (hovered or focused) and "hover" or "normal"
-                    if info.visualState ~= state then
-                        set_icon_canvas_color(canvas,
-                            state == "hover" and FOLDER_ICON_COLOR_HOVER or FOLDER_ICON_COLOR_NORMAL)
-                        info.visualState = state
-                    end
-                else
-                    map[identity] = nil
-                end
-            end
-        end
-        return any_live
-    end
-
-    local function tick()
-        if generation ~= folder_ui_state.renameHoverGeneration then return end
-        local any_live = visit_button_map(folder_ui_state.renameButtons)
-        if visit_button_map(folder_ui_state.deleteButtons) then any_live = true end
-        if any_live then
-            ExecuteWithDelay(40, function() ExecuteInGameThread(tick) end)
-        end
-    end
-
-    for _, map in ipairs({
-        folder_ui_state.renameButtons or {},
-        folder_ui_state.deleteButtons or {},
-    }) do
-        for _, info in pairs(map) do
-            if info.iconCanvas ~= nil then
-                set_icon_canvas_color(info.iconCanvas, FOLDER_ICON_COLOR_NORMAL)
-                info.visualState = "normal"
-            end
-        end
-    end
-    ExecuteWithDelay(40, function() ExecuteInGameThread(tick) end)
-end
-
 local function register_rename_folder_button(button, pool_vm, name, icon_canvas)
     button = unwrap(button)
     pool_vm = unwrap(pool_vm)
@@ -1728,19 +1648,17 @@ local function install_rename_button_on_folder(page, pool_widget, folder_header,
     -- Construct. Strip it once immediately and once after the folder settles.
     style_folder_action_button(rename_button, "RENAME FOLDER")
     style_folder_action_button(delete_button, "DELETE FOLDER")
-    ExecuteWithDelay(80, function()
-        ExecuteInGameThread(function()
-            local rename_info = folder_ui_state.renameButtons and
-                folder_ui_state.renameButtons[object_name(rename_button)] or nil
-            if rename_info ~= nil and same_object(rename_info.button, rename_button) then
-                style_folder_action_button(rename_button, "RENAME FOLDER")
-            end
-            local delete_info = folder_ui_state.deleteButtons and
-                folder_ui_state.deleteButtons[object_name(delete_button)] or nil
-            if delete_info ~= nil and same_object(delete_info.button, delete_button) then
-                style_folder_action_button(delete_button, "DELETE FOLDER")
-            end
-        end)
+    run_on_game_thread_after(80, function()
+        local rename_info = folder_ui_state.renameButtons and
+            folder_ui_state.renameButtons[object_name(rename_button)] or nil
+        if rename_info ~= nil and same_object(rename_info.button, rename_button) then
+            style_folder_action_button(rename_button, "RENAME FOLDER")
+        end
+        local delete_info = folder_ui_state.deleteButtons and
+            folder_ui_state.deleteButtons[object_name(delete_button)] or nil
+        if delete_info ~= nil and same_object(delete_info.button, delete_button) then
+            style_folder_action_button(delete_button, "DELETE FOLDER")
+        end
     end)
 
     log("Folder action buttons installed at generation: pool='" .. tostring(name)
@@ -1994,8 +1912,7 @@ local function schedule_default_pool_row_decoration(pool_widget, rows, source_en
         .. " generation=" .. tostring(generation))
 
     local function step(index)
-        ExecuteWithDelay(index == 1 and 30 or 18, function()
-            ExecuteInGameThread(function()
+        run_on_game_thread_after(index == 1 and 30 or 18, function()
                 if generation ~= default_move_decor_generation then
                     log("Default move decoration cancelled: stale generation=" .. tostring(generation))
                     return
@@ -2036,7 +1953,6 @@ local function schedule_default_pool_row_decoration(pool_widget, rows, source_en
                 else
                     log("Default move decoration complete: rows=" .. tostring(total))
                 end
-            end)
         end)
     end
 
@@ -2153,7 +2069,7 @@ local function create_folder_entry(popup, initial_text)
         end)
     end
     apply()
-    ExecuteWithDelay(1, function() ExecuteInGameThread(apply) end)
+    run_on_game_thread_after(1, apply)
     return entry, editable, nil
 end
 
@@ -2214,19 +2130,15 @@ local function show_folder_dialog(mode, title, body, actions, want_entry, initia
         local _, set_err = try_call(function() below:SetContent(entry) end)
         if set_err ~= nil then return false end
         folder_popup_state.textBox = editable
-        ExecuteWithDelay(1, function()
-            ExecuteInGameThread(function()
-                if folder_popup_state.widget == popup then pcall(function() editable:SetKeyboardFocus() end) end
-            end)
+        run_on_game_thread_after(1, function()
+            if folder_popup_state.widget == popup then pcall(function() editable:SetKeyboardFocus() end) end
         end)
     end
 
-    ExecuteWithDelay(1, function()
-        ExecuteInGameThread(function()
-            if folder_popup_state.widget == popup then
-                pcall(function() popup:SetVisibility(0); popup:ActivateWidget() end)
-            end
-        end)
+    run_on_game_thread_after(1, function()
+        if folder_popup_state.widget == popup then
+            pcall(function() popup:SetVisibility(0); popup:ActivateWidget() end)
+        end
     end)
     log("Create Folder native dialog opened: mode=" .. tostring(mode))
     return true
@@ -2385,10 +2297,8 @@ local function perform_move_character(guid_string, target_pool_name, character_n
     elseif target_is_default then
         local visible_now = set_default_row_visibility(0, "moved into Default")
         if not visible_now then
-            ExecuteWithDelay(160, function()
-                ExecuteInGameThread(function()
-                    set_default_row_visibility(0, "moved into Default delayed")
-                end)
+            run_on_game_thread_after(160, function()
+                set_default_row_visibility(0, "moved into Default delayed")
             end)
         end
     end
@@ -2516,19 +2426,23 @@ show_move_character_dialog = function(move_info)
                             targetLabel = destination.label,
                             popup = popup,
                         }
-                        ExecuteWithDelay(80, function()
-                            ExecuteInGameThread(function()
-                                local info = folder_ui_state.moveDestinationButtons[object_name(button)]
-                                if info ~= nil and same_object(info.button, button) then
-                                    style_move_destination_button(button, destination.label)
-                                end
-                            end)
-                        end)
                     end
                 end
             end
         end
     end
+
+    -- Repaint every cloned destination control in one owned game-thread action.
+    -- The old path queued one async callback per button and was the final work
+    -- scheduled before the repeated-move Lua registry crash.
+    run_on_game_thread_after(80, function()
+        if folder_popup_state.widget == nil or not same_object(folder_popup_state.widget, popup) then return end
+        for _, info in pairs(folder_ui_state.moveDestinationButtons or {}) do
+            if info.popup ~= nil and same_object(info.popup, popup) then
+                style_move_destination_button(info.button, info.targetLabel)
+            end
+        end
+    end)
 
     local _, set_err = try_call(function() return below:SetContent(list) end)
     if set_err ~= nil then
@@ -2734,18 +2648,14 @@ handle_folder_dialog_result = function(widget_value, result_value)
     if action == nil then log("Databank dialog closed with unmapped result: " .. tostring(result_tag)); return end
     log("Databank dialog result: mode=" .. tostring(mode) .. " action=" .. tostring(action) .. " name='" .. tostring(captured_text) .. "'")
     if mode == "create_folder" and action == "create" then
-        ExecuteWithDelay(120, function() ExecuteInGameThread(function() perform_create_folder(captured_text) end) end)
+        run_on_game_thread_after(120, function() perform_create_folder(captured_text) end)
     elseif mode == "rename_folder" and action == "rename" then
-        ExecuteWithDelay(120, function()
-            ExecuteInGameThread(function()
-                perform_rename_folder(target_pool_vm, target_pool_name, captured_text)
-            end)
+        run_on_game_thread_after(120, function()
+            perform_rename_folder(target_pool_vm, target_pool_name, captured_text)
         end)
     elseif mode == "delete_folder" and action == "delete" then
-        ExecuteWithDelay(120, function()
-            ExecuteInGameThread(function()
-                perform_delete_folder(target_pool_vm, target_pool_name)
-            end)
+        run_on_game_thread_after(120, function()
+            perform_delete_folder(target_pool_vm, target_pool_name)
         end)
     end
 end
@@ -2788,11 +2698,9 @@ local function schedule_move_character_dialog(move_info, source)
     folder_ui_state.moveClickScheduled = true
     log("Move Character transfer hit-zone clicked via " .. tostring(source or "unknown")
         .. ": '" .. tostring(move_info.name) .. "' source='" .. tostring(move_info.sourcePoolName) .. "'")
-    ExecuteWithDelay(1, function()
-        ExecuteInGameThread(function()
-            folder_ui_state.moveClickScheduled = false
-            show_move_character_dialog(move_info)
-        end)
+    run_on_game_thread_after(1, function()
+        folder_ui_state.moveClickScheduled = false
+        show_move_character_dialog(move_info)
     end)
     return true
 end
@@ -2837,16 +2745,12 @@ local function install_folder_button_click_hook()
                     -- a later game-thread turn and only move after the outro starts.
                     folder_popup_state.suppressResult = true
                     folder_ui_state.moveDestinationButtons = {}
-                    ExecuteWithDelay(75, function()
-                        ExecuteInGameThread(function()
-                            log("Move Character deferred picker close begin")
-                            close_move_destination_picker()
-                            log("Move Character deferred picker close complete")
-                            ExecuteWithDelay(125, function()
-                                ExecuteInGameThread(function()
-                                    perform_move_character(guid, target, character_name)
-                                end)
-                            end)
+                    run_on_game_thread_after(75, function()
+                        log("Move Character deferred picker close begin")
+                        close_move_destination_picker()
+                        log("Move Character deferred picker close complete")
+                        run_on_game_thread_after(125, function()
+                            perform_move_character(guid, target, character_name)
                         end)
                     end)
                     return
@@ -2954,10 +2858,8 @@ local function install_folder_button_click_hook()
                 local rename_info = folder_ui_state.renameButtons and folder_ui_state.renameButtons[identity] or nil
                 if rename_info ~= nil then
                     log("Rename Folder edit icon clicked: '" .. tostring(rename_info.name) .. "'")
-                    ExecuteWithDelay(1, function()
-                        ExecuteInGameThread(function()
-                            show_rename_folder_dialog(rename_info.poolVM, rename_info.name)
-                        end)
+                    run_on_game_thread_after(1, function()
+                        show_rename_folder_dialog(rename_info.poolVM, rename_info.name)
                     end)
                     return
                 end
@@ -2966,18 +2868,16 @@ local function install_folder_button_click_hook()
                 if delete_info ~= nil then
                     log("Delete Folder trash icon clicked: '" .. tostring(delete_info.name)
                         .. "' capturedCount=" .. tostring(delete_info.characterCount))
-                    ExecuteWithDelay(1, function()
-                        ExecuteInGameThread(function()
-                            show_delete_folder_dialog(delete_info.poolVM, delete_info.name,
-                                delete_info.characterCount)
-                        end)
+                    run_on_game_thread_after(1, function()
+                        show_delete_folder_dialog(delete_info.poolVM, delete_info.name,
+                            delete_info.characterCount)
                     end)
                     return
                 end
 
                 if not folder_ui_state.buttons[identity] then return end
                 log("Create Folder icon clicked; deferring dialog until native click unwinds.")
-                ExecuteWithDelay(1, function() ExecuteInGameThread(show_create_folder_dialog) end)
+                run_on_game_thread_after(1, show_create_folder_dialog)
             end
         )
     end)
@@ -2994,6 +2894,13 @@ local function set_registered_action_icon_state(button, hovered)
     button = unwrap(button)
     if button == nil then return end
     local identity = button_identity(button)
+    if folder_ui_state.button ~= nil and same_object(folder_ui_state.button, button) then
+        set_folder_icon_color(
+            hovered and FOLDER_ICON_COLOR_HOVER or FOLDER_ICON_COLOR_NORMAL,
+            hovered and "hover" or "normal"
+        )
+        return
+    end
     local info = (folder_ui_state.moveRowActions and folder_ui_state.moveRowActions[identity])
         or (folder_ui_state.moveButtons and folder_ui_state.moveButtons[identity])
         or (folder_ui_state.renameButtons and folder_ui_state.renameButtons[identity])
@@ -3046,7 +2953,6 @@ local function ensure_create_folder_control(page)
         folder_ui_state.moveRowActions = {}
         folder_ui_state.moveDestinationButtons = {}
         folder_ui_state.moveClickScheduled = false
-            folder_hover_generation = folder_hover_generation + 1
     end
 
     if folder_ui_state.button ~= nil then
@@ -3114,13 +3020,11 @@ local function ensure_create_folder_control(page)
         register_folder_button(icon_button)
         folder_ui_state.row = character_share_row
         style_create_folder_icon_button(page, icon_button)
-        start_folder_button_hover_monitor(icon_button)
-        ExecuteWithDelay(80, function()
-            ExecuteInGameThread(function()
-                if same_object(folder_ui_state.button, icon_button) then
-                    style_create_folder_icon_button(page, icon_button)
-                end
-            end)
+        set_folder_icon_color(FOLDER_ICON_COLOR_NORMAL, "normal")
+        run_on_game_thread_after(80, function()
+            if same_object(folder_ui_state.button, icon_button) then
+                style_create_folder_icon_button(page, icon_button)
+            end
         end)
         log(string.format(
             "Create Folder joined Character Share action row: previousCreateWidth=%.1f createWidth=%.1f iconWidth=%.1f",
@@ -3165,11 +3069,9 @@ local function ensure_create_folder_control(page)
     register_folder_button(icon_button)
     folder_ui_state.row = row
     style_create_folder_icon_button(page, icon_button)
-    start_folder_button_hover_monitor(icon_button)
-    ExecuteWithDelay(80, function()
-        ExecuteInGameThread(function()
-            if same_object(folder_ui_state.button, icon_button) then style_create_folder_icon_button(page, icon_button) end
-        end)
+    set_folder_icon_color(FOLDER_ICON_COLOR_NORMAL, "normal")
+    run_on_game_thread_after(80, function()
+        if same_object(folder_ui_state.button, icon_button) then style_create_folder_icon_button(page, icon_button) end
     end)
     log(string.format("Create Folder icon installed beside Create New: originalWidth=%.1f createWidth=%.1f iconWidth=%.1f",
         original_width, create_width, CREATE_FOLDER_ICON_WIDTH))
@@ -3184,6 +3086,7 @@ install_action_hover_hooks()
 local refresh_in_progress = false
 local refresh_generation = 0
 local refresh_again = false
+local refresh_action_handle = MakeActionHandle()
 
 local function resolve_live_humanoid_page()
     local master = find_first("WBP_CharacterBank_Master_C")
@@ -3294,7 +3197,6 @@ local function refresh_visible_pools(reason)
     folder_ui_state.moveRowActions = {}
     folder_ui_state.moveDestinationButtons = {}
     folder_ui_state.renderedPools = {}
-    folder_ui_state.renameHoverGeneration = (folder_ui_state.renameHoverGeneration or 0) + 1
     default_move_decor_generation = default_move_decor_generation + 1
     log("Removed prior dynamic pool widgets=" .. tostring(removed))
 
@@ -3407,12 +3309,7 @@ local function refresh_visible_pools(reason)
 
     if refresh_again then
         refresh_again = false
-        refresh_generation = refresh_generation + 1
-        local generation = refresh_generation
-        ExecuteWithDelay(80, function()
-            if generation ~= refresh_generation then return end
-            ExecuteInGameThread(function() refresh_visible_pools("coalesced follow-up") end)
-        end)
+        schedule_refresh("coalesced follow-up", 80)
     end
 end
 
@@ -3428,12 +3325,9 @@ schedule_refresh = function(reason, delay_ms)
 
     refresh_generation = refresh_generation + 1
     local generation = refresh_generation
-    ExecuteWithDelay(delay_ms or 100, function()
+    RetriggerableExecuteInGameThreadWithDelay(refresh_action_handle, delay_ms or 100, function()
         if generation ~= refresh_generation then return end
-        ExecuteInGameThread(function()
-            if generation ~= refresh_generation then return end
-            refresh_visible_pools(reason)
-        end)
+        refresh_visible_pools(reason)
     end)
 end
 
@@ -3615,12 +3509,10 @@ local function install_folder_clicked_hook()
             -- Re-scan only after the native collapse/expand click has unwound.
             -- This does not rebuild folders or rows; it merely decorates any row
             -- UObjects the native folder regenerated while expanding.
-            ExecuteWithDelay(80, function()
-                ExecuteInGameThread(function()
-                    if decorate_current_character_rows ~= nil then
-                        decorate_current_character_rows("folder expand/collapse")
-                    end
-                end)
+            run_on_game_thread_after(80, function()
+                if decorate_current_character_rows ~= nil then
+                    decorate_current_character_rows("folder expand/collapse")
+                end
             end)
         end)
     end)
@@ -3700,12 +3592,12 @@ attempt_install_databank_lifecycle_hooks = function(reason)
                 end
             end
             if catchup_attempts < 20 then
-                ExecuteWithDelay(100, try_catchup)
+                run_on_game_thread_after(100, try_catchup)
             else
                 log("Late-hook catch-up skipped: live Databank page was not fully initialized; normal BP_OnActivated hook will render on entry.")
             end
         end
-        ExecuteWithDelay(100, try_catchup)
+        run_on_game_thread_after(100, try_catchup)
     end
 
     if master_hook_installed and page_hook_installed and character_click_hook_installed and folder_click_hook_installed then
@@ -3715,7 +3607,7 @@ attempt_install_databank_lifecycle_hooks = function(reason)
         return
     end
 
-    ExecuteWithDelay(400, function()
+    run_on_game_thread_after(400, function()
         if lifecycle_retry_active then
             attempt_install_databank_lifecycle_hooks("deferred Blueprint load")
         end
@@ -3775,7 +3667,7 @@ hook_native_refresh("/Script/BitReactorGame.BitReactorCharacterPoolManager:MoveC
 hook_native_refresh("/Script/BitReactorGame.BitReactorCharacterPoolManager:RenamePlayerCreatedCharacterPool", "PoolManager.RenamePlayerCreatedCharacterPool")
 hook_native_refresh("/Script/BitReactorGame.BitReactorCharacterPoolManager:DeletePlayerCreatedCharacterPool", "PoolManager.DeletePlayerCreatedCharacterPool")
 
-log("Loaded v" .. VERSION .. ". MOVE uses the stable manager-direct native mutation and performs at most one targeted Default-row visibility correction. Custom pools render once per native mutation: no ViewModel convergence retry loop and no generated per-row context replay. The selected-row lookup remains click-only; no per-character widgets, polling, or manual save writes.")
+log("Loaded v" .. VERSION .. ". Deferred work uses UE4SS owned delayed game-thread actions, including a retriggerable refresh handle; no legacy async timers or hover polling remain. MOVE uses the stable manager-direct native mutation and performs at most one targeted Default-row visibility correction. Custom pools render once per native mutation: no ViewModel convergence retry loop and no generated per-row context replay. The selected-row lookup remains click-only; no per-character widgets or manual save writes.")
 log("On Databank activation and native pool mutations it rebuilds visible folders from authoritative CharacterPoolManager ownership.")
 if LOG_PATH then log("Dedicated log: " .. LOG_PATH) end
 if source_resolution_note then log(source_resolution_note) end
@@ -3783,9 +3675,9 @@ if source_resolution_note then log(source_resolution_note) end
 require("debug_keybinds").install({
     log = log,
     refresh = function()
-        ExecuteInGameThread(function() refresh_visible_pools("manual Shift+F7") end)
+        run_on_game_thread_after(0, function() refresh_visible_pools("manual Shift+F7") end)
     end,
     restore = function()
-        ExecuteInGameThread(restore_stock_only)
+        run_on_game_thread_after(0, restore_stock_only)
     end,
 })

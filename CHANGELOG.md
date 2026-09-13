@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Migrated all deferred UI and mutation work to UE4SS's owned delayed
+  game-thread action system, avoiding the callback-registry race triggered by
+  overlapping `ExecuteWithDelay` and `ExecuteInGameThread` work.
+- Removed the continuously rescheduled Create Folder hover poll and routed its
+  visual state through the existing event-driven CommonUI hover hooks.
+- Coalesced refresh scheduling with a retriggerable action handle and reduced
+  Move destination repainting to one delayed action per dialog.
+
 ## [1.0.0] - 2026-09-13
 
 ### Added
