@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Added an owned, cancellable delayed-action group for lifecycle-hook
+  installation and cold-entry catch-up. Pending retries are now queried and
+  cancelled when the installer restarts or an activation-owned render wins.
 - Added fail-closed `IsValid()` checks for every UObject explicitly captured by
   delayed actions, including widgets, pool ViewModels, character ViewModels,
   and dynamically stored destination buttons. Stale callbacks now stop before

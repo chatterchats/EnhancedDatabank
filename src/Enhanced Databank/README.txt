@@ -46,7 +46,8 @@ Requirements
 - Star Wars: Zero Company
 - UE4SS with the delayed game-thread action API
   (ExecuteInGameThreadWithDelay, RetriggerableExecuteInGameThreadWithDelay,
-  and MakeActionHandle)
+  MakeActionHandle, CancelDelayedAction, IsValidDelayedActionHandle, and
+  IsDelayedActionActive)
 
 The Steam builds listed in the package metadata are the tested baseline. Other
 game builds and launchers should be treated as unverified.

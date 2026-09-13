@@ -11,7 +11,10 @@ end
 
 if type(ExecuteInGameThreadWithDelay) ~= "function"
     or type(RetriggerableExecuteInGameThreadWithDelay) ~= "function"
-    or type(MakeActionHandle) ~= "function" then
+    or type(MakeActionHandle) ~= "function"
+    or type(CancelDelayedAction) ~= "function"
+    or type(IsValidDelayedActionHandle) ~= "function"
+    or type(IsDelayedActionActive) ~= "function" then
     error("Enhanced Databank requires the UE4SS delayed game-thread action system")
 end
 
@@ -29,10 +32,74 @@ local function uobject_is_valid(value)
     return err == nil and valid == true
 end
 
-local function run_on_game_thread_after(delay_ms, callback, ...)
+EnhancedDatabankActions = EnhancedDatabankActions or { groups = {} }
+EnhancedDatabankActions.groups = EnhancedDatabankActions.groups or {}
+
+function EnhancedDatabankActions.cancel_group(group, reason)
+    local actions = EnhancedDatabankActions.groups[group]
+    if actions == nil then return 0 end
+    EnhancedDatabankActions.groups[group] = nil
+
+    local cancelled = 0
+    local active = 0
+    for handle in pairs(actions) do
+        local valid = select(1, try_call(function()
+            return IsValidDelayedActionHandle(handle)
+        end))
+        local is_active = select(1, try_call(function()
+            return IsDelayedActionActive(handle)
+        end))
+        if is_active == true then active = active + 1 end
+        if valid == true then
+            local did_cancel = select(1, try_call(function()
+                return CancelDelayedAction(handle)
+            end))
+            if did_cancel == true then cancelled = cancelled + 1 end
+        end
+    end
+
+    if cancelled > 0 then
+        print(PREFIX .. " Cancelled delayed-action group '" .. tostring(group)
+            .. "': cancelled=" .. tostring(cancelled)
+            .. " active=" .. tostring(active)
+            .. " reason=" .. tostring(reason or "session ended") .. "\n")
+    end
+    return cancelled
+end
+
+function EnhancedDatabankActions.cancel_all(reason)
+    local groups = {}
+    for group in pairs(EnhancedDatabankActions.groups) do
+        table.insert(groups, group)
+    end
+    local cancelled = 0
+    for _, group in ipairs(groups) do
+        cancelled = cancelled + EnhancedDatabankActions.cancel_group(group, reason)
+    end
+    return cancelled
+end
+
+function EnhancedDatabankActions.schedule_after(group, delay_ms, callback, ...)
     local captured_count = select("#", ...)
     local captured_uobjects = { ... }
-    return ExecuteInGameThreadWithDelay(math.max(0, tonumber(delay_ms) or 0), function()
+    local handle = nil
+    local actions = nil
+
+    if group ~= nil then
+        handle = MakeActionHandle()
+        actions = EnhancedDatabankActions.groups[group] or {}
+        EnhancedDatabankActions.groups[group] = actions
+        actions[handle] = true
+    end
+
+    local function invoke()
+        if actions ~= nil then
+            actions[handle] = nil
+            if next(actions) == nil and EnhancedDatabankActions.groups[group] == actions then
+                EnhancedDatabankActions.groups[group] = nil
+            end
+        end
+
         for index = 1, captured_count do
             local captured = captured_uobjects[index]
             if not uobject_is_valid(captured) then
@@ -42,8 +109,24 @@ local function run_on_game_thread_after(delay_ms, callback, ...)
             end
         end
         callback()
-    end)
+    end
+
+    if handle ~= nil then
+        ExecuteInGameThreadWithDelay(handle, math.max(0, tonumber(delay_ms) or 0), invoke)
+        return handle
+    end
+    return ExecuteInGameThreadWithDelay(math.max(0, tonumber(delay_ms) or 0), invoke)
 end
+
+local function run_on_game_thread_after(delay_ms, callback, ...)
+    return EnhancedDatabankActions.schedule_after(nil, delay_ms, callback, ...)
+end
+
+function EnhancedDatabankActions.run_group_after(group, delay_ms, callback, ...)
+    return EnhancedDatabankActions.schedule_after(group, delay_ms, callback, ...)
+end
+
+EnhancedDatabankActions.cancel_all("mod script reloaded")
 
 local function object_name(object)
     object = unwrap(object)
@@ -3586,6 +3669,10 @@ attempt_install_databank_lifecycle_hooks = function(reason)
             -- duplicate cold-entry render. Let the activation-owned request win.
             if refresh_generation > 0 then
                 log("Late-hook catch-up suppressed: activation render already scheduled.")
+                EnhancedDatabankActions.cancel_group(
+                    "lifecycle_hook_install",
+                    "activation render already scheduled"
+                )
                 return
             end
             local page, databank_vm = resolve_live_humanoid_page()
@@ -3616,12 +3703,20 @@ attempt_install_databank_lifecycle_hooks = function(reason)
                 end
             end
             if catchup_attempts < 20 then
-                run_on_game_thread_after(100, try_catchup)
+                EnhancedDatabankActions.run_group_after(
+                    "lifecycle_hook_install",
+                    100,
+                    try_catchup
+                )
             else
                 log("Late-hook catch-up skipped: live Databank page was not fully initialized; normal BP_OnActivated hook will render on entry.")
             end
         end
-        run_on_game_thread_after(100, try_catchup)
+        EnhancedDatabankActions.run_group_after(
+            "lifecycle_hook_install",
+            100,
+            try_catchup
+        )
     end
 
     if master_hook_installed and page_hook_installed and character_click_hook_installed and folder_click_hook_installed then
@@ -3631,13 +3726,17 @@ attempt_install_databank_lifecycle_hooks = function(reason)
         return
     end
 
-    run_on_game_thread_after(400, function()
+    EnhancedDatabankActions.run_group_after("lifecycle_hook_install", 400, function()
         if lifecycle_retry_active then
             attempt_install_databank_lifecycle_hooks("deferred Blueprint load")
         end
     end)
 end
 
+EnhancedDatabankActions.cancel_group(
+    "lifecycle_hook_install",
+    "lifecycle installer restarted"
+)
 attempt_install_databank_lifecycle_hooks("initial mod load")
 
 -- Native CommonUI activation is the fallback that should fire even when a
