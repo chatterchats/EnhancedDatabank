@@ -148,7 +148,6 @@ jobs:
           ln "dist/${PACKAGE_NAME}" "Enhanced Databank ${{ steps.release.outputs.version }}.zip"
 
       - name: Upload to Nexus Mods
-        if: ${{ inputs.publish_to_nexus }}
         uses: Nexus-Mods/upload-action@c96019556046053aa26044b44396cd38929daf23
         with:
           api_key: ${{ secrets.NEXUSMODS_API_KEY }}
