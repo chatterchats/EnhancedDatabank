@@ -139,17 +139,17 @@ function M.resolve_move_info(deps)
 
     -- The generic MDViewModel binding for this row is an opaque proxy with a
     -- different UObject identity from the same entry in the typed pool array.
-    -- Pass the concrete selected row instead. The caller finds its owning pool
-    -- and index, then reads the typed VM used to render that position.
+    -- Pass the concrete selected row instead. The caller resolves its owning pool
+    -- and safely joins the row back to the corresponding typed ViewModel.
     local membership, membership_err = deps.findMembership(selected_row)
     if membership == nil then
-        deps.log("Selected-character row-position lookup failed: row="
+        deps.log("Selected-character row-identity lookup failed: row="
             .. deps.objectName(selected_row))
         return nil, tostring(membership_err or
             "The selected character is not in a movable custom-character pool.")
     end
 
-    deps.log("Selected-character ownership resolved by row position: row="
+    deps.log("Selected-character ownership resolved by row identity: row="
         .. deps.objectName(selected_row) .. " guid=" .. tostring(membership.guid)
         .. " source='" .. tostring(membership.sourcePoolName) .. "'")
     return membership, nil

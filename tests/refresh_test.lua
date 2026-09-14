@@ -45,6 +45,8 @@ ctx.common = {
     unwrap = function(value) return value end,
     uobject_is_valid = function(value) return value ~= nil and value.valid ~= false end,
     panel_child_at = function(panel, index) return panel[index + 1] end,
+    panel_child_count = function(panel) return #panel end,
+    text_value = function(value) return tostring(value or "") end,
     try_call = function(callback)
         local ok, value = pcall(callback)
         if ok then return value end
@@ -53,8 +55,10 @@ ctx.common = {
 }
 ctx.pool_authority = {}
 assert(loadfile(scripts .. "/pool_authority.lua"))()(ctx)
-local function character(id) return { PoolCharacterData = { PoolCharacterID = { A = id, B = 0, C = 0, D = 1 } } } end
-local kept, removed = character(1), character(2)
+local function character(id, name)
+    return { name = name, PoolCharacterData = { PoolCharacterID = { A = id, B = 0, C = 0, D = 1 } } }
+end
+local kept, removed = character(1, "Kept"), character(2, "Removed")
 local vm = { PoolCharacterViewModels = { kept, removed } }
 local key = ctx.pool_authority.character_guid_string(kept)
 local rows = ctx.pool_authority.rows_for_authority(vm, { guids = { [key] = true }, guid_order = { key } }, {})
@@ -66,8 +70,10 @@ assert(#rows == 0, "deleting the last character must leave no custom rows")
 -- only visibility; never regenerate, remove, or retain the stock row widgets.
 ctx.state = { folder_ui_state = { hiddenDefaultRows = {} } }
 ctx.logging = { log = function() end }
-local function row(visibility)
+ctx.pool_authority.character_display_name = function(value) return value.name end
+local function row(name, visibility)
     return {
+        BitReactorRichTextBlock_73 = { GetText = function() return name end },
         visibility = visibility,
         GetVisibility = function(self) return self.visibility end,
         SetVisibility = function(self, value)
@@ -76,7 +82,7 @@ local function row(visibility)
         end,
     }
 end
-local kept_row, stale_row = row(0), row(0)
+local kept_row, stale_row = row("Kept", 0), row("Removed", 0)
 local stock = { BitReactorStackBox_25 = { kept_row, stale_row } }
 local ok = ctx.databank_ui.reconcile_default_row_visibility(
     vm, stock, { guids = { [key] = true }, count = 1 }, "delete")
@@ -91,4 +97,50 @@ ctx.databank_ui.reconcile_default_row_visibility(
     vm, stock, { guids = { [key] = true, [stale_key] = true }, count = 2 }, "move back")
 assert(stale_row.visibility == 0 and stale_row.writes == 2)
 assert(ctx.state.folder_ui_state.hiddenDefaultRows[stale_key] == nil)
+
+-- Creating the first new character after emptying Default can prepend its typed
+-- ViewModel while appending its physical widget. Identity reconciliation must
+-- keep the new row visible instead of applying a stale VM's GUID by ordinal.
+local created = character(3, "New Character")
+local created_key = ctx.pool_authority.character_guid_string(created)
+-- The stack box can reuse a row that is still Collapsed from its previous stale
+-- occupant. The new authoritative GUID was never recorded in hiddenDefaultRows.
+local created_row = row("New Character", 1)
+vm.PoolCharacterViewModels = { created, kept, removed }
+stock.BitReactorStackBox_25 = { kept_row, stale_row, created_row }
+ctx.databank_ui.reconcile_default_row_visibility(
+    vm, stock, { guids = { [created_key] = true }, count = 1 }, "created after empty")
+assert(created_row.visibility == 0 and created_row.writes == 1,
+    "newly-created authoritative row was not made visible")
+assert(kept_row.visibility == 1 and stale_row.visibility == 1,
+    "stale rows were not kept hidden after typed/widget order diverged")
+
+ctx.databank_ui.reconcile_default_row_visibility(
+    vm, stock, { guids = { [created_key] = true, [key] = true }, count = 2 },
+    "move existing character back")
+assert(created_row.visibility == 0,
+    "moving another character back hid the newly-created row")
+assert(kept_row.visibility == 0,
+    "the returning authoritative character was not restored by row identity")
+
+-- A native move may leave multiple typed wrappers for the same character.
+-- Identical names remain safe when every wrapper carries the same GUID.
+local kept_wrapper = character(1, "Kept")
+vm.PoolCharacterViewModels = { created, kept, kept_wrapper, removed }
+local kept_index = ctx.pool_authority.character_display_index(vm.PoolCharacterViewModels)
+local _, repeated_guid = ctx.pool_authority.character_for_row(kept_row, kept_index)
+assert(repeated_guid == key,
+    "same-name wrappers for one GUID were treated as different characters")
+
+-- Duplicate display names cannot establish a unique row identity. Fail open
+-- instead of hiding either potentially authoritative row.
+local duplicate_a = character(4, "Duplicate")
+local duplicate_b = character(5, "Duplicate")
+local duplicate_row = row("Duplicate", 1)
+vm.PoolCharacterViewModels = { duplicate_a, duplicate_b }
+stock.BitReactorStackBox_25 = { duplicate_row }
+ctx.databank_ui.reconcile_default_row_visibility(
+    vm, stock, { guids = {}, count = 0 }, "ambiguous names")
+assert(duplicate_row.visibility == 1 and duplicate_row.writes == nil,
+    "ambiguous row identity must fail open")
 print("refresh coalescing, retirement, and deleted-row filtering tests passed")

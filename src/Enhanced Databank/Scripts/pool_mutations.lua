@@ -42,37 +42,41 @@ return function(ctx)
 
         -- Manager-direct moves are the stable persistence path, but the shipping
         -- Default pool can retain the moved character in its live ViewModel array.
-        -- Never regenerate or reparent that pool. Instead, after the move, change
-        -- only the matching native row's visibility. Its slot remains in place, so
-        -- the stale typed-array position continues to line up with later selections.
+        -- Never regenerate or reparent that pool. Resolve the physical row through
+        -- its rendered identity; the typed array and widget stack can diverge after
+        -- a new character is inserted.
         local function set_default_row_visibility(visibility, reason)
             local databank_vm = ctx.common.find_first("BrunoCharacterDatabankViewModel")
             local default_vm = databank_vm and select(1, ctx.common.read_property(
                 databank_vm, "DefaultCustomCharacterPoolViewModel")) or nil
-            local wanted_index, ordinal = nil, 0
             local items = default_vm and select(1, ctx.common.read_property(
                 default_vm, "PoolCharacterViewModels")) or nil
-            ctx.common.array_each(items, function(_, candidate)
-                if wanted_index == nil and ctx.pool_authority.character_guid_string(candidate) == guid_string then
-                    wanted_index = ordinal
-                end
-                ordinal = ordinal + 1
-            end)
-            if wanted_index == nil then
-                ctx.logging.log("Default row visibility reconcile deferred/unavailable: guid="
-                    .. tostring(guid_string) .. " reason=" .. tostring(reason))
-                return false
-            end
-
             local master = ctx.common.find_first("WBP_CharacterBank_Master_C")
             local page = master and select(1, ctx.common.read_property(master, "OtherCharacterList")) or nil
             local stock_widget = page and select(1, ctx.common.read_property(page, "CharacterPool")) or nil
             local stack = stock_widget and select(1, ctx.common.read_property(
                 stock_widget, "BitReactorStackBox_25")) or nil
-            local row = stack and ctx.common.panel_child_at(stack, wanted_index) or nil
+            local row_count = stack and ctx.common.panel_child_count(stack) or nil
+            if items == nil or stack == nil or row_count == nil then
+                ctx.logging.log("Default row visibility reconcile deferred/unavailable: guid="
+                    .. tostring(guid_string) .. " reason=" .. tostring(reason))
+                return false
+            end
+
+            local display_index = ctx.pool_authority.character_display_index(items)
+            local row, wanted_index = nil, nil
+            for index = 0, row_count - 1 do
+                local candidate_row = ctx.common.panel_child_at(stack, index)
+                local _, candidate_guid = ctx.pool_authority.character_for_row(
+                    candidate_row, display_index)
+                if candidate_guid == guid_string then
+                    row, wanted_index = candidate_row, index
+                    break
+                end
+            end
             if row == nil then
-                ctx.logging.log("Default row visibility reconcile could not find row index="
-                    .. tostring(wanted_index) .. " guid=" .. tostring(guid_string))
+                ctx.logging.log("Default row visibility reconcile could not resolve row: guid="
+                    .. tostring(guid_string) .. " reason=" .. tostring(reason))
                 return false
             end
             local ok, visibility_err = pcall(function() row:SetVisibility(visibility) end)

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1]
+
+### Fixed
+
+- Keep newly created characters visible when the Player Created pool was empty.
+  Default-row reconciliation now resolves each native row through its unique
+  rendered character name instead of assuming the stale typed ViewModel array
+  and native widget stack retain identical indices.
+- Fail open for unreadable or duplicate row names so reconciliation cannot hide
+  a character whose native row identity is ambiguous.
+- Force a uniquely resolved authoritative row back to `Visible` when native
+  stack-box widget reuse carries over the previous occupant's `Collapsed` state.
+  Treat duplicate transient ViewModel wrappers as safe when they share one GUID.
 
 ## [1.0.0] - 2026-09-13
 

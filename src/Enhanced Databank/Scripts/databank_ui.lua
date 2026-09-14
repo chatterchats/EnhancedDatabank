@@ -53,53 +53,58 @@ return function(ctx)
         end
 
         local hidden, restored, already_hidden = 0, 0, 0
-        local missing_rows, missing_guids, ordinal = 0, 0, 0
+        local missing_rows, unresolved_rows = 0, 0
         local hidden_by_mod = ctx.state.folder_ui_state.hiddenDefaultRows
-        ctx.common.array_each(items, function(_, candidate)
-            local guid = ctx.pool_authority.character_guid_string(candidate)
+        local display_index = ctx.pool_authority.character_display_index(items)
+        local row_count = ctx.common.panel_child_count(stack)
+        if row_count == nil then return false, "Default pool row count unavailable" end
+
+        for ordinal = 0, row_count - 1 do
             local row = ctx.common.panel_child_at(stack, ordinal)
-            ordinal = ordinal + 1
-            if guid == nil then
-                missing_guids = missing_guids + 1
-                return
-            end
             if row == nil or not ctx.common.uobject_is_valid(row) then
                 missing_rows = missing_rows + 1
-                return
-            end
-
-            if not authority_entry.guids[guid] then
-                -- Moving/deleting can leave the source VM and shipping row alive.
-                -- Collapse only that non-authoritative row; never rebuild, remove,
-                -- reparent, decorate, or retain its UObject.
-                local current = select(1, ctx.common.try_call(
-                    function() return row:GetVisibility() end))
-                if tonumber(current) == 1 then
-                    already_hidden = already_hidden + 1
+            else
+                local _, guid = ctx.pool_authority.character_for_row(row, display_index)
+                if guid == nil then
+                    unresolved_rows = unresolved_rows + 1
+                elseif not authority_entry.guids[guid] then
+                    -- Moving/deleting can leave the source VM and shipping row alive.
+                    -- Collapse only the row whose own rendered identity resolves to
+                    -- that non-authoritative GUID. Never infer identity by array index.
+                    local current = select(1, ctx.common.try_call(
+                        function() return row:GetVisibility() end))
+                    if tonumber(current) == 1 then
+                        already_hidden = already_hidden + 1
+                    else
+                        local ok = pcall(function() row:SetVisibility(1) end)
+                        if ok then hidden = hidden + 1 end
+                    end
+                    hidden_by_mod[guid] = true
                 else
-                    local ok = pcall(function() row:SetVisibility(1) end)
-                    if ok then hidden = hidden + 1 end
-                end
-                hidden_by_mod[guid] = true
-            elseif hidden_by_mod[guid] then
-                -- Restore only rows this mod previously collapsed, such as a
-                -- character subsequently moved back into the Default pool.
-                local ok = pcall(function() row:SetVisibility(0) end)
-                if ok then
-                    restored = restored + 1
+                    -- Native stack-box widget reuse can assign a newly created
+                    -- authoritative character to a row that is still Collapsed
+                    -- from its previous stale occupant. Authority wins here: a
+                    -- resolved current-pool row must be visible even when this
+                    -- GUID was not the one the mod originally hid.
+                    local current = select(1, ctx.common.try_call(
+                        function() return row:GetVisibility() end))
+                    if tonumber(current) == 1 then
+                        local ok = pcall(function() row:SetVisibility(0) end)
+                        if ok then restored = restored + 1 end
+                    end
                     hidden_by_mod[guid] = nil
                 end
             end
-        end)
+        end
 
         ctx.logging.log("Default row visibility reconciliation: reason="
-            .. tostring(reason) .. " scanned=" .. tostring(ordinal)
+            .. tostring(reason) .. " scanned=" .. tostring(row_count)
             .. " authoritative=" .. tostring(authority_entry.count or 0)
             .. " hidden=" .. tostring(hidden)
             .. " alreadyHidden=" .. tostring(already_hidden)
             .. " restored=" .. tostring(restored)
             .. " missingRows=" .. tostring(missing_rows)
-            .. " missingGuids=" .. tostring(missing_guids))
+            .. " unresolvedRows=" .. tostring(unresolved_rows))
         return true
     end
 
@@ -183,8 +188,9 @@ return function(ctx)
         ctx.state.default_move_decor_generation = ctx.state.default_move_decor_generation + 1
         ctx.logging.log("Removed prior dynamic pool widgets=" .. tostring(removed))
 
-        -- Preserve the shipping Default pool and its indices. Only reconcile
-        -- visibility for VM rows whose GUID is no longer manager-authoritative.
+        -- Preserve the shipping Default pool and its rows. Only reconcile
+        -- visibility when a physical row resolves safely to a GUID that is no
+        -- longer manager-authoritative.
         local default_ok, default_err =
             ctx.databank_ui.reconcile_default_row_visibility(
                 default_vm, stock_widget, authority.default_custom, reason)

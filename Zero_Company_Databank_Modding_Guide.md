@@ -301,15 +301,28 @@ For the default/Player Created pool:
 
 If a manager-direct move leaves exactly one now-non-authoritative Default row in
 the stale VM array, changing only that row to `Collapsed` is a bounded exception.
-Keep it attached so the native stack and stale typed-array indices remain aligned;
-set it back to `Visible` if the character later returns to Default.
+Keep it attached so the game retains ownership of the native row; set it back to
+`Visible` if the character later returns to Default.
 
 The same targeted visibility reconciliation must run after character deletion
 and later Databank refreshes. Native bindings can make a stale moved/deleted row
-visible again even though its GUID is absent from manager ownership. Compare each
-existing Default VM row's GUID against the authoritative Default GUID set, and
-only call `SetVisibility` for a non-authoritative row (or a row this mod previously
-collapsed and must restore). Do not regenerate or remove the stock row.
+visible again even though its GUID is absent from manager ownership. Do not pair
+the Default VM array and widget stack by index: creating a character can prepend
+its typed ViewModel while appending its physical row. Resolve each row's rendered
+`BitReactorRichTextBlock_73` name back to a uniquely named typed ViewModel, then
+compare that ViewModel's GUID against manager authority. If the name is missing or
+ambiguous, leave the row untouched. Only call `SetVisibility` after resolving the
+row safely: collapse a non-authoritative row, or restore an authoritative row that
+the native widget stack presents as collapsed. Do not regenerate or remove the
+stock row.
+
+The native stack box can also reuse a previously collapsed stale row for a newly
+created authoritative character. Once a physical row resolves uniquely to a GUID
+that is currently authoritative in Default, explicitly restore it to `Visible`;
+the hidden-state bookkeeping may still refer to the row's previous occupant. Two
+transient typed wrappers with the same rendered name are not ambiguous when they
+also contain the same GUID. Same-name wrappers with different GUIDs remain unsafe
+and must fail open.
 
 Wait until the number of native stock rows matches the authoritative Default pool state, then decorate the existing rows.
 
@@ -620,11 +633,14 @@ ID is not the authoritative manager key. v13.12 therefore reads
 `BrunoCharacterPoolCharacterViewModel`. That binding is correct, but its GUID
 surfaces as an opaque generic UObject proxy. v13.13 attempted to match that proxy
 by UObject identity against the typed pool arrays, but testing showed the proxy
-and typed entry also have different identities. v13.14 instead finds the concrete
-selected row's index in its pool and reads the exact typed ViewModel at that
-position. Generated pools retain only their ordered typed render list; the stock
-pool is read only after MOVE is clicked. The resulting GUID is still verified
-against authoritative manager ownership before the destination picker opens.
+and typed entry also have different identities. v13.14 instead used the concrete
+selected row's index in its pool to read the typed ViewModel at that position.
+That remains valid for generated pools because they retain the exact ordered
+render list. It is not valid for the stock pool once native mutations make its
+typed array and widget stack diverge. The stock row is now joined to a uniquely
+named typed ViewModel through its rendered `BitReactorRichTextBlock_73` text. The
+resulting GUID is still verified against authoritative manager ownership before
+the destination picker opens.
 
 ---
 

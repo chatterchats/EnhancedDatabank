@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "community.enhanced_databank",
   "name": "Enhanced Databank",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": "Chats",
   "description": "Organize custom characters into native Databank folders and move them between pools.",
   "game": {

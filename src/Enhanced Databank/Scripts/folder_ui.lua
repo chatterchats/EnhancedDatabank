@@ -662,23 +662,21 @@ return function(ctx)
                                         local row_index = stack and ctx.widget_helpers.panel_child_index(stack, selected_row) or -1
                                         if row_index < 0 then return nil end
 
-                                        local candidate = nil
+                                        local candidate, guid = nil, nil
                                         if rows ~= nil then
                                             candidate = ctx.common.unwrap(rows[row_index + 1])
                                         else
-                                            local ordinal = 0
                                             local items = select(1, ctx.common.read_property(
                                                 default_vm, "PoolCharacterViewModels"))
-                                            ctx.common.array_each(items, function(_, item)
-                                                if candidate == nil and ordinal == row_index then
-                                                    candidate = ctx.common.unwrap(item)
-                                                end
-                                                ordinal = ordinal + 1
-                                            end)
+                                            local display_index =
+                                                ctx.pool_authority.character_display_index(items)
+                                            candidate, guid = ctx.pool_authority.character_for_row(
+                                                selected_row, display_index)
                                         end
 
-                                        local guid = candidate and ctx.pool_authority.character_guid_string(candidate) or nil
-                                        ctx.logging.log("Selected-character row-position candidate: pool='"
+                                        guid = guid or (candidate and
+                                            ctx.pool_authority.character_guid_string(candidate) or nil)
+                                        ctx.logging.log("Selected-character row-identity candidate: pool='"
                                             .. tostring(entry.name or "") .. "' rowIndex="
                                             .. tostring(row_index) .. " guid=" .. tostring(guid))
                                         if guid == nil or not entry.guids[guid] then
@@ -694,9 +692,10 @@ return function(ctx)
                                         }, nil
                                     end
 
-                                    -- The shipping pool remains wholly native. Touch
-                                    -- only its selected row, and only after MOVE is
-                                    -- clicked; there is no activation-time row scan.
+                                    -- The shipping pool remains wholly native. Resolve
+                                    -- the selected row by its rendered identity instead
+                                    -- of assuming its current stack index matches the
+                                    -- stale typed ViewModel array.
                                     local found, found_err = result_for(
                                         stock_widget, nil, authority.default_custom, true)
                                     if found ~= nil or found_err ~= nil then return found, found_err end

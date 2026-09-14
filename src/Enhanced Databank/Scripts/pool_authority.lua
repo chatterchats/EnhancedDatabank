@@ -73,6 +73,64 @@ return function(ctx)
         return ctx.pool_authority.character_guid_string(character_vm) or "Character"
     end
 
+    local function trim(value)
+        return tostring(value or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    end
+
+    function ctx.pool_authority.character_display_index(items)
+        local index = { by_name = {}, ambiguous = {}, count = 0 }
+        ctx.common.array_each(items, function(_, candidate)
+            candidate = ctx.common.unwrap(candidate)
+            local guid = candidate and ctx.pool_authority.character_guid_string(candidate) or nil
+            local name = candidate and trim(ctx.pool_authority.character_display_name(candidate)) or ""
+            if guid == nil or name == "" then return end
+
+            index.count = index.count + 1
+            local existing = index.by_name[name]
+            if existing ~= nil and existing.guid ~= guid then
+                index.by_name[name] = nil
+                index.ambiguous[name] = true
+            elseif existing ~= nil then
+                -- Native moves can leave two transient typed wrappers for the
+                -- same character. The name is still unambiguous when both
+                -- wrappers carry the identical authoritative GUID.
+            elseif not index.ambiguous[name] then
+                index.by_name[name] = { vm = candidate, guid = guid }
+            end
+        end)
+        return index
+    end
+
+    function ctx.pool_authority.character_for_row(row, display_index)
+        row = ctx.common.unwrap(row)
+        if row == nil then return nil, nil, "row unavailable" end
+
+        -- The compiled Character Databank row exposes its bound full name through
+        -- this native rich-text child. UE4SS does not expose a dependable typed
+        -- character-ViewModel identity on the row itself, so use the rendered name
+        -- only as a unique join back to the typed pool array. Ambiguous names fail
+        -- open: callers must not hide or mutate a row they cannot identify exactly.
+        local label = select(1, ctx.common.read_property(row, "BitReactorRichTextBlock_73"))
+        if label == nil then return nil, nil, "row name label unavailable" end
+        local value, text_err = ctx.common.try_call(function() return label:GetText() end)
+        if text_err ~= nil or value == nil then
+            return nil, nil, "row name unavailable: " .. tostring(text_err)
+        end
+
+        local name = trim(ctx.common.text_value(value))
+        if name == "" then return nil, nil, "row name empty" end
+        if display_index == nil then return nil, nil, "character display index unavailable" end
+        if display_index.ambiguous[name] then
+            return nil, nil, "row name is not unique: '" .. name .. "'"
+        end
+
+        local entry = display_index.by_name[name]
+        if entry == nil then
+            return nil, nil, "row name has no typed ViewModel match: '" .. name .. "'"
+        end
+        return entry.vm, entry.guid, nil
+    end
+
     function ctx.pool_authority.find_authoritative_guid_value(wanted_guid)
         wanted_guid = tostring(wanted_guid or "")
         if wanted_guid == "" then return nil, nil, "character GUID unavailable" end
