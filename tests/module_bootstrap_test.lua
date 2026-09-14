@@ -32,8 +32,9 @@ ModifierKey = { CONTROL = 1, SHIFT = 2 }
 function MakeActionHandle() next_id = next_id + 1; return next_id end
 function ExecuteInGameThreadWithDelay(handle, delay, callback)
     assert(type(handle) == "number" and type(delay) == "number")
-    queue[handle] = callback
+    if not queue[handle] then queue[handle] = callback end
 end
+-- UE4SS retains the first callback; retriggering only resets the due time.
 RetriggerableExecuteInGameThreadWithDelay = ExecuteInGameThreadWithDelay
 function CancelDelayedAction(handle) cancelled[handle] = true; return true end
 function IsValidDelayedActionHandle(handle) return not cancelled[handle] end
@@ -81,6 +82,24 @@ else
     assert(EnhancedDatabankActions == second.actions.api)
     assert(second.state.folder_ui_state ~= first.state.folder_ui_state)
     assert(type(second.state.show_move_character_dialog) == "function")
+    local remove = assert(hooks["/Script/BitReactorGame.BitReactorCharacterPoolManager:RemoveCharacterFromPool"])
+    local delete = assert(hooks["/Script/Bruno.BrunoCharacterDatabankViewModel:DeletePoolCharacter"])
+    local rendered, reason = 0, nil
+    second.databank_ui.refresh_visible_pools = function(value)
+        rendered, reason = rendered + 1, value
+    end
+    -- A native DeletePoolCharacter may call RemoveCharacterFromPool internally.
+    -- Neither post-hook may inspect or capture the now-deleted character.
+    local deleted = setmetatable({}, { __index = function() error("deleted UObject accessed") end })
+    queue = {}
+    remove.post(deleted, deleted)
+    delete.post(deleted, deleted)
+    assert(rendered == 0, "render must wait until native deletion unwinds")
+    local pending = queue
+    queue = {}
+    for _, callback in pairs(pending) do callback() end
+    assert(rendered == 1 and reason == "DatabankVM.DeletePoolCharacter",
+        "nested native deletion events must produce one authoritative rebuild")
 end
 second.runtime:teardown("test complete")
 for _, line in ipairs(logs) do

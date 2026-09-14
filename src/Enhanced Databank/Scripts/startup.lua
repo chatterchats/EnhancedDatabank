@@ -47,6 +47,12 @@ return function(ctx)
 
     ctx.lifecycle.hook_native_refresh("/Script/Bruno.BrunoCharacterDatabankViewModel:DeletePool", "DatabankVM.DeletePool")
 
+    -- Character deletion does not necessarily delete its containing folder.
+    -- Rebuild custom rows after either native deletion surface has unwound.
+    ctx.lifecycle.hook_native_refresh("/Script/Bruno.BrunoCharacterDatabankViewModel:DeletePoolCharacter", "DatabankVM.DeletePoolCharacter")
+
+    ctx.lifecycle.hook_native_refresh("/Script/BitReactorGame.BitReactorCharacterPoolManager:RemoveCharacterFromPool", "PoolManager.RemoveCharacterFromPool")
+
     ctx.lifecycle.hook_native_refresh("/Script/Bruno.BrunoCharacterDatabankViewModel:MovePoolCharacterToPool", "DatabankVM.MovePoolCharacterToPool")
 
     -- Both mutation surfaces remain observable for stock game paths and other mods.

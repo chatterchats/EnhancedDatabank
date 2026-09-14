@@ -11,6 +11,7 @@ return function(ctx)
     local refresh_again = false
 
     local refresh_action_handle = MakeActionHandle()
+    local pending_refresh_reason = nil
 
     function ctx.databank_ui.resolve_live_humanoid_page()
         local master = ctx.common.find_first("WBP_CharacterBank_Master_C")
@@ -237,6 +238,16 @@ return function(ctx)
         end
     end
 
+    -- UE4SS resets an active handle's timer but retains its FIRST callback.
+    -- Keep that callback stable and read the latest request when it fires.
+    local function run_scheduled_refresh()
+        ctx.runtime:finish_action(refresh_action_handle)
+        if not ctx.runtime.alive then return end
+        local reason = pending_refresh_reason
+        pending_refresh_reason = nil
+        ctx.databank_ui.refresh_visible_pools(reason)
+    end
+
     ctx.databank_ui.schedule_refresh = function(reason, delay_ms)
         -- Lifecycle hooks can finish installing while an activation-triggered render
         -- is already running. Coalesce immediately instead of arming another timer
@@ -248,15 +259,10 @@ return function(ctx)
         end
 
         ctx.databank_ui.refresh_generation = ctx.databank_ui.refresh_generation + 1
-        local generation = ctx.databank_ui.refresh_generation
-        local runtime = ctx.runtime
-        runtime:track_action(refresh_action_handle)
-        RetriggerableExecuteInGameThreadWithDelay(refresh_action_handle, delay_ms or 100, function()
-            runtime:finish_action(refresh_action_handle)
-            if not runtime.alive then return end
-            if generation ~= ctx.databank_ui.refresh_generation then return end
-            ctx.databank_ui.refresh_visible_pools(reason)
-        end)
+        pending_refresh_reason = reason
+        ctx.runtime:track_action(refresh_action_handle)
+        RetriggerableExecuteInGameThreadWithDelay(
+            refresh_action_handle, delay_ms or 100, run_scheduled_refresh)
     end
 
     function ctx.databank_ui.restore_stock_only()

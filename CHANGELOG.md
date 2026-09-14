@@ -19,6 +19,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Preserve the first callback on retriggerable refresh handles and read the
+  latest reason when it fires. Paired master/page activation events no longer
+  invalidate their only pending folder rebuild.
+- Refresh custom folders after native character deletion through both
+  DeletePoolCharacter and RemoveCharacterFromPool, without capturing the
+  deleted UObject. Nested notifications coalesce into one deferred rebuild.
+- Add regression coverage for UE4SS callback retention, deletion notifications,
+  deleted-row filtering, and retired-runtime refreshes.
+
 - Added reload teardown with a central hook registry retaining both UE4SS hook
   IDs, cancellation of every owned action (including refresh), and optional
   current-mod delayed-action clearing. Retired callbacks are disabled.

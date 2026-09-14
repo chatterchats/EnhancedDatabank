@@ -45,6 +45,7 @@ Run from the repository root:
 luajit tests/reload_runtime_test.lua "src/Enhanced Databank/Scripts"
 luajit tests/widget_reload_test.lua "src/Enhanced Databank/Scripts"
 luajit tests/module_bootstrap_test.lua "src/Enhanced Databank/Scripts"
+luajit tests/refresh_test.lua "src/Enhanced Databank/Scripts"
 python3 tests/version_bump_test.py
 ```
 
