@@ -70,6 +70,9 @@ Mod Manager and Zero Company Mod Command.
    ue4ss/Mods/Enhanced Databank/Scripts/main.lua
    ```
 
+   Install the entire `Scripts` directory, not just `main.lua`; the entry point
+   loads the accompanying runtime modules.
+
 4. If your UE4SS setup does not honor the packaged `enabled.txt`, add:
 
    ```text
@@ -182,6 +185,11 @@ mod, retains the ZIP as a workflow artifact, and can publish it to Nexus Mods.
 
 The workflow packages `src/Enhanced Databank` as
 `Enhanced Databank V#.#.#.zip`.
+
+## Development
+
+See [Script architecture](docs/architecture.md) for module responsibilities,
+shared-state and reload rules, and local regression-test commands.
 
 ## Attribution
 

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Split the entry script into focused modules for action ownership, hook
+  registration, logging, pool authority and mutations, folder controls and
+  icons, native dialogs, Databank rendering, and lifecycle installation.
+- Give each startup a fresh explicit module context, preserving shared state
+  and reload cleanup without accumulating top-level Lua locals.
+- Test the production module factories and full bootstrap/reload wiring
+  directly, including surviving-widget adoption.
+
 ### Fixed
 
 - Added reload teardown with a central hook registry retaining both UE4SS hook
