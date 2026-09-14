@@ -145,14 +145,14 @@ jobs:
         run: |
           mkdir -p dist
           (cd src && zip -r "../dist/${PACKAGE_NAME}" "Enhanced Databank")
-          ln "dist/${PACKAGE_NAME}" "Enhanced Databank ${{ steps.release.outputs.version }}.zip"
+          ln "dist/${PACKAGE_NAME}" "Enhanced Databank v${{ steps.release.outputs.version }}.zip"
 
       - name: Upload to Nexus Mods
         uses: Nexus-Mods/upload-action@c96019556046053aa26044b44396cd38929daf23
         with:
           api_key: ${{ secrets.NEXUSMODS_API_KEY }}
           file_id: ${{ steps.nexus.outputs.file_id }}
-          filename: Enhanced Databank.zip
+          filename: Enhanced Databank v${{ steps.release.outputs.version }}.zip
           version: ${{ steps.release.outputs.version }}
           display_name: Enhanced Databank
           mod_id: ${{ steps.nexus.outputs.mod_id }}
