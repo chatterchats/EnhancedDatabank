@@ -80,6 +80,7 @@ return function(ctx)
         moveRowActions = {},
         moveDestinationButtons = {},
         renderedPools = {},
+        hiddenDefaultRows = {},
         moveClickScheduled = false,
         pendingMove = nil,
     }

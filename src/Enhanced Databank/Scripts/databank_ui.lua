@@ -36,13 +36,71 @@ return function(ctx)
 
     ctx.databank_ui.schedule_refresh = nil
 
-    local function schedule_default_pool_reconciliation(expected_page_identity)
-        -- An earlier approach still crashed after four compact stock-row visuals had been
-        -- installed. Do not inspect, decorate, or retain any shipping character row
-        -- in the stability baseline. The native Default pool remains wholly owned by
-        -- the game.
-        ctx.logging.log("Default Custom untouched: stock row reconciliation/decoration disabled for stability; page="
-            .. tostring(expected_page_identity))
+    function ctx.databank_ui.reconcile_default_row_visibility(
+        default_vm, stock_widget, authority_entry, reason)
+        default_vm = ctx.common.unwrap(default_vm)
+        stock_widget = ctx.common.unwrap(stock_widget)
+        if default_vm == nil or stock_widget == nil or authority_entry == nil then
+            return false, "Default pool ViewModel/widget/authority unavailable"
+        end
+
+        local items = select(1, ctx.common.read_property(
+            default_vm, "PoolCharacterViewModels"))
+        local stack = select(1, ctx.common.read_property(
+            stock_widget, "BitReactorStackBox_25"))
+        if items == nil or stack == nil then
+            return false, "Default pool rows unavailable"
+        end
+
+        local hidden, restored, already_hidden = 0, 0, 0
+        local missing_rows, missing_guids, ordinal = 0, 0, 0
+        local hidden_by_mod = ctx.state.folder_ui_state.hiddenDefaultRows
+        ctx.common.array_each(items, function(_, candidate)
+            local guid = ctx.pool_authority.character_guid_string(candidate)
+            local row = ctx.common.panel_child_at(stack, ordinal)
+            ordinal = ordinal + 1
+            if guid == nil then
+                missing_guids = missing_guids + 1
+                return
+            end
+            if row == nil or not ctx.common.uobject_is_valid(row) then
+                missing_rows = missing_rows + 1
+                return
+            end
+
+            if not authority_entry.guids[guid] then
+                -- Moving/deleting can leave the source VM and shipping row alive.
+                -- Collapse only that non-authoritative row; never rebuild, remove,
+                -- reparent, decorate, or retain its UObject.
+                local current = select(1, ctx.common.try_call(
+                    function() return row:GetVisibility() end))
+                if tonumber(current) == 1 then
+                    already_hidden = already_hidden + 1
+                else
+                    local ok = pcall(function() row:SetVisibility(1) end)
+                    if ok then hidden = hidden + 1 end
+                end
+                hidden_by_mod[guid] = true
+            elseif hidden_by_mod[guid] then
+                -- Restore only rows this mod previously collapsed, such as a
+                -- character subsequently moved back into the Default pool.
+                local ok = pcall(function() row:SetVisibility(0) end)
+                if ok then
+                    restored = restored + 1
+                    hidden_by_mod[guid] = nil
+                end
+            end
+        end)
+
+        ctx.logging.log("Default row visibility reconciliation: reason="
+            .. tostring(reason) .. " scanned=" .. tostring(ordinal)
+            .. " authoritative=" .. tostring(authority_entry.count or 0)
+            .. " hidden=" .. tostring(hidden)
+            .. " alreadyHidden=" .. tostring(already_hidden)
+            .. " restored=" .. tostring(restored)
+            .. " missingRows=" .. tostring(missing_rows)
+            .. " missingGuids=" .. tostring(missing_guids))
+        return true
     end
 
     function ctx.databank_ui.refresh_visible_pools(reason)
@@ -125,12 +183,15 @@ return function(ctx)
         ctx.state.default_move_decor_generation = ctx.state.default_move_decor_generation + 1
         ctx.logging.log("Removed prior dynamic pool widgets=" .. tostring(removed))
 
-        -- The shipping Default Custom widget is already bound and populated by the
-        -- game. Preserve it, and defer even its read-only reconciliation until the
-                -- current activation callback has unwound. Deferring per-row widget
-        -- construction but still re-read DefaultCustomCharacterPoolViewModel here;
-        -- two cold-entry runs crashed at that exact UE4SS/native boundary.
-        schedule_default_pool_reconciliation(ctx.common.object_name(page))
+        -- Preserve the shipping Default pool and its indices. Only reconcile
+        -- visibility for VM rows whose GUID is no longer manager-authoritative.
+        local default_ok, default_err =
+            ctx.databank_ui.reconcile_default_row_visibility(
+                default_vm, stock_widget, authority.default_custom, reason)
+        if not default_ok then
+            ctx.logging.log("Default row visibility reconciliation unavailable: "
+                .. tostring(default_err))
+        end
 
         if scroll == nil then
             ctx.logging.log("ABORT: BitReactorScrollBox_0 unavailable")

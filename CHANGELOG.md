@@ -19,6 +19,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Reconcile the shipping Default pool after refreshes by collapsing only rows
+  whose GUID is no longer present in authoritative manager ownership. Deleted
+  or moved characters can no longer reappear through a stale Default ViewModel,
+  while the stock list is never regenerated, removed, reparented, or decorated.
+- Restore visibility only for rows previously hidden by the mod when their GUID
+  later becomes authoritative in Default again.
+
 - Preserve the first callback on retriggerable refresh handles and read the
   latest reason when it fires. Paired master/page activation events no longer
   invalidate their only pending folder rebuild.

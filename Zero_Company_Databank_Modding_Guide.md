@@ -304,6 +304,13 @@ the stale VM array, changing only that row to `Collapsed` is a bounded exception
 Keep it attached so the native stack and stale typed-array indices remain aligned;
 set it back to `Visible` if the character later returns to Default.
 
+The same targeted visibility reconciliation must run after character deletion
+and later Databank refreshes. Native bindings can make a stale moved/deleted row
+visible again even though its GUID is absent from manager ownership. Compare each
+existing Default VM row's GUID against the authoritative Default GUID set, and
+only call `SetVisibility` for a non-authoritative row (or a row this mod previously
+collapsed and must restore). Do not regenerate or remove the stock row.
+
 Wait until the number of native stock rows matches the authoritative Default pool state, then decorate the existing rows.
 
 The current log breadcrumb for this path is:

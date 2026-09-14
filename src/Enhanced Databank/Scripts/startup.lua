@@ -64,7 +64,7 @@ return function(ctx)
 
     ctx.lifecycle.hook_native_refresh("/Script/BitReactorGame.BitReactorCharacterPoolManager:DeletePlayerCreatedCharacterPool", "PoolManager.DeletePlayerCreatedCharacterPool")
 
-    ctx.logging.log("Loaded v" .. ctx.config.VERSION .. ". Deferred work uses UE4SS owned delayed game-thread actions, including a retriggerable refresh handle; no legacy async timers or hover polling remain. MOVE uses the stable manager-direct native mutation and performs at most one targeted Default-row visibility correction. Custom pools render once per native mutation: no ViewModel convergence retry loop and no generated per-row context replay. The selected-row lookup remains click-only; no per-character widgets or manual save writes.")
+    ctx.logging.log("Loaded v" .. ctx.config.VERSION .. ". Deferred work uses UE4SS owned delayed game-thread actions, including a retriggerable refresh handle; no legacy async timers or hover polling remain. MOVE uses the stable manager-direct native mutation. Refreshes apply only targeted Default-row visibility corrections for stale GUIDs; the shipping list is never regenerated. Custom pools render once per native mutation: no ViewModel convergence retry loop and no generated per-row context replay. The selected-row lookup remains click-only; no per-character widgets or manual save writes.")
 
     ctx.logging.log("On Databank activation and native pool mutations it rebuilds visible folders from authoritative CharacterPoolManager ownership.")
 
