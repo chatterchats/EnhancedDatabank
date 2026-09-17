@@ -839,6 +839,22 @@ return function(ctx)
         end
 
         local adopted = ctx.widget_helpers.find_tree_widget(page, ctx.state.CREATE_FOLDER_BUTTON_MARKER)
+        if not ctx.common.uobject_is_valid(adopted) then
+            -- Blueprint clones can keep their generated UObject name when Rename
+            -- is unavailable. Tab switches clear our registry, but leave the old
+            -- controls attached. Recover the button from our named native overlay
+            -- so returning to a page does not append another control/shrink its row.
+            local overlay = ctx.widget_helpers.find_tree_widget(page, "EnhancedDatabank_CreateFolderOverlay")
+            local count = overlay and ctx.common.panel_child_count(overlay) or 0
+            for index = 0, (count or 0) - 1 do
+                local child = ctx.common.panel_child_at(overlay, index)
+                if ctx.common.uobject_is_valid(child)
+                    and string.find(ctx.common.class_name(child), "WBP_CharacterBankCreateNewBtn_C", 1, true) ~= nil then
+                    adopted = child
+                    break
+                end
+            end
+        end
         if ctx.common.uobject_is_valid(adopted) then
             register_folder_button(adopted)
             ctx.state.folder_ui_state.row = select(1, ctx.common.try_call(function() return ctx.common.unwrap(adopted:GetParent()) end))
@@ -877,7 +893,6 @@ return function(ctx)
             if wrapper_width == nil or wrapper_width < 120.0 then wrapper_width = 628.0 end
             local resized_width = math.max(120.0,
                 wrapper_width - ctx.state.CREATE_FOLDER_ICON_WIDTH - ctx.state.CREATE_FOLDER_GAP)
-            pcall(function() character_share_create_wrapper:SetWidthOverride(resized_width) end)
 
             local icon_overlay, overlay_err = ctx.folder_icons.make_create_folder_icon_overlay(page, icon_button)
             local icon_wrapper = nil
@@ -898,6 +913,7 @@ return function(ctx)
                 return false
             end
             ctx.widget_helpers.configure_row_slot(icon_slot, ctx.state.CREATE_FOLDER_GAP)
+            pcall(function() character_share_create_wrapper:SetWidthOverride(resized_width) end)
 
             register_folder_button(icon_button)
             ctx.state.folder_ui_state.row = character_share_row

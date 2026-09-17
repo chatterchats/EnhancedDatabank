@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.3]
+
+### Fixed
+
+- Reuse the existing Create Folder button when switching Databank tabs or
+  reloading scripts, even when its Blueprint clone keeps an Unreal-generated
+  name. This prevents duplicate icons and repeated shrinking of Create New.
+- Preserve Create New's width if adding the folder control to Character Share's
+  action row fails, so retrying does not consume additional space.
+
 ## [1.0.2]
 
 ### Added

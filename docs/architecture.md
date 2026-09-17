@@ -45,6 +45,7 @@ Run from the repository root:
 ```sh
 luajit tests/reload_runtime_test.lua "src/Enhanced Databank/Scripts"
 luajit tests/widget_reload_test.lua "src/Enhanced Databank/Scripts"
+luajit tests/create_folder_control_test.lua "src/Enhanced Databank/Scripts"
 luajit tests/module_bootstrap_test.lua "src/Enhanced Databank/Scripts"
 luajit tests/refresh_test.lua "src/Enhanced Databank/Scripts"
 luajit tests/astromech_test.lua "src/Enhanced Databank/Scripts"
@@ -56,6 +57,12 @@ wiring, and version helper with mocked engine boundaries. They do not replace
 in-game checks: enter/leave the Databank, create/rename/move/delete a folder, move
 several characters, and check the shared Import/Create Folder row with Character
 Share enabled.
+
+Create Folder adoption also resolves unnamed Blueprint clones through their
+attached native overlay. The control tests simulate a failed clone rename,
+repeated category switches, and a fresh Lua context with surviving widgets,
+both with and without Character Share. They verify stable row widths and child
+counts, restored click/hover routing, and a failed append followed by a retry.
 
 The Lua tests also run with `lua5.4` in place of `luajit`.
 
