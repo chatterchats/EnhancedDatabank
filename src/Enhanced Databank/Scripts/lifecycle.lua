@@ -1,12 +1,9 @@
 -- Enhanced Databank: lifecycle.
 -- Initialized once per mod instance; shared references use explicit ctx fields.
--- Context: actions, common, databank_ui, folder_ui, lifecycle, logging, pool_authority, runtime, state.
+-- Context: categories, actions, common, databank_ui, folder_ui, lifecycle, logging, pool_authority, runtime, state.
 return function(ctx)
-    function ctx.lifecycle.page_is_humanoid(page)
-        page = ctx.common.unwrap(page)
-        if page == nil then return false end
-        local identity = ctx.common.object_name(page)
-        return string.find(identity, "OtherCharacterList", 1, true) ~= nil
+    function ctx.lifecycle.activate_supported_page(page)
+        return ctx.categories.activate(page)
     end
 
     -- The CharacterBank Blueprint packages are not necessarily loaded when UE4SS
@@ -48,12 +45,14 @@ return function(ctx)
         return string.find(identity, "/Engine/Transient", 1, true) ~= nil
     end
 
-    local function live_humanoid_page_available()
+    local function live_supported_page_available()
         local master = ctx.common.find_first("WBP_CharacterBank_Master_C")
         if master == nil then return false end
         local page = select(1, ctx.common.read_property(master, "OtherCharacterList"))
-        if page == nil then return false end
-        return ctx.lifecycle.page_is_humanoid(page)
+        if page == nil then
+            page = select(1, ctx.common.read_property(master, "AstromechCharacterList"))
+        end
+        return ctx.categories.for_page(page) ~= nil
     end
 
     local function install_master_activation_hook()
@@ -87,40 +86,40 @@ return function(ctx)
 
     local function install_page_activation_hook()
         if page_hook_installed then return true, nil end
-        -- Same rationale as the master hook: require the live humanoid page before
+        -- Same rationale as the master hook: require the live supported page before
         -- asking UE4SS to register the Blueprint override hook. This keeps cold-start
         -- lazy installation silent instead of generating an expected stack trace.
-        if not live_humanoid_page_available() then
-            return false, "live humanoid page not loaded"
+        if not live_supported_page_available() then
+            return false, "live supported page not loaded"
         end
 
         local ok, hook_id = pcall(function()
             return ctx.runtime:register_hook(PAGE_ACTIVATED_PATH, function(context, ...)
                 local page = ctx.common.unwrap(context)
-                if ctx.lifecycle.page_is_humanoid(page) then
-                    ctx.logging.log("Humanoid Character Databank page BP_OnActivated; scheduling authoritative UI rebuild.")
-                    ctx.databank_ui.schedule_refresh("humanoid page BP_OnActivated", 120)
+                if ctx.lifecycle.activate_supported_page(page) then
+                    ctx.logging.log("Character Databank page BP_OnActivated; scheduling authoritative UI rebuild.")
+                    ctx.databank_ui.schedule_refresh("supported page BP_OnActivated", 120)
                 end
             end)
         end)
 
         if ok and hook_id ~= nil then
             page_hook_installed = true
-            ctx.logging.log("Hooked humanoid page BP_OnActivated (lazy-safe installer).")
+            ctx.logging.log("Hooked supported page BP_OnActivated (lazy-safe installer).")
             return true, nil
         end
         return false, tostring(hook_id)
     end
 
     local function live_pool_item_available()
-        local page, databank_vm = ctx.databank_ui.resolve_live_humanoid_page()
+        local page, databank_vm = ctx.databank_ui.resolve_live_page()
         if page == nil or databank_vm == nil then return false end
         local stock_widget = select(1, ctx.common.read_property(page, "CharacterPool"))
         return stock_widget ~= nil
     end
 
     local function live_character_row_available()
-        local page = select(1, ctx.databank_ui.resolve_live_humanoid_page())
+        local page = select(1, ctx.databank_ui.resolve_live_page())
         if page == nil then return false end
         local stock_widget = select(1, ctx.common.read_property(page, "CharacterPool"))
         if stock_widget == nil then return false end
@@ -233,7 +232,7 @@ return function(ctx)
                     )
                     return
                 end
-                local page, databank_vm = ctx.databank_ui.resolve_live_humanoid_page()
+                local page, databank_vm = ctx.databank_ui.resolve_live_page()
                 if page ~= nil and databank_vm ~= nil then
                     local stock_widget = select(1, ctx.common.read_property(page, "CharacterPool"))
                     local stock_stack = stock_widget and select(1, ctx.common.read_property(stock_widget, "BitReactorStackBox_25")) or nil

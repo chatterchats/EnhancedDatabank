@@ -1,6 +1,6 @@
 -- Enhanced Databank: databank ui.
 -- Initialized once per mod instance; shared references use explicit ctx fields.
--- Context: common, databank_ui, folder_ui, logging, pool_authority, pool_widgets, runtime, state, widget_helpers.
+-- Context: categories, common, databank_ui, folder_ui, logging, pool_authority, pool_widgets, runtime, state, widget_helpers.
 return function(ctx)
     -- Folder management uses explicit per-folder edit/delete buttons; no hidden gestures.
 
@@ -13,25 +13,26 @@ return function(ctx)
     local refresh_action_handle = MakeActionHandle()
     local pending_refresh_reason = nil
 
-    function ctx.databank_ui.resolve_live_humanoid_page()
+    function ctx.databank_ui.resolve_live_page(category)
         local master = ctx.common.find_first("WBP_CharacterBank_Master_C")
         local databank_vm = ctx.common.find_first("BrunoCharacterDatabankViewModel")
         if not ctx.common.uobject_is_valid(master) or not ctx.common.uobject_is_valid(databank_vm) then
             return nil, nil, "Databank master/viewmodel unavailable"
         end
-        local page = select(1, ctx.common.read_property(master, "OtherCharacterList"))
-        if not ctx.common.uobject_is_valid(page) then return nil, nil, "OtherCharacterList unavailable" end
+        category = category or ctx.categories.sync_active_page(master)
+        local page = select(1, ctx.common.read_property(master, category.page))
+        if not ctx.common.uobject_is_valid(page) then return nil, nil, category.page .. " unavailable" end
         local stock_widget = select(1, ctx.common.read_property(page, "CharacterPool"))
         local scroll = select(1, ctx.common.read_property(page, "BitReactorScrollBox_0"))
-        local default_vm = select(1, ctx.common.read_property(databank_vm, "DefaultCustomCharacterPoolViewModel"))
+        local default_vm = select(1, ctx.common.read_property(databank_vm, category.default_vm))
         if not ctx.common.uobject_is_valid(stock_widget) or not ctx.common.uobject_is_valid(scroll)
             or not ctx.common.uobject_is_valid(default_vm) then
-            return nil, nil, "humanoid Databank widget tree/viewmodels not ready"
+            return nil, nil, "Databank widget tree/viewmodels not ready"
         end
         -- Return the objects already resolved during the readiness check. Re-reading
         -- these reflected properties later in the same cold-activation callback was
         -- a repeatable UE4SS access-violation boundary.
-        return page, databank_vm, nil, stock_widget, default_vm, scroll
+        return page, databank_vm, nil, stock_widget, default_vm, scroll, category
     end
 
     ctx.databank_ui.schedule_refresh = nil
@@ -52,13 +53,18 @@ return function(ctx)
             return false, "Default pool rows unavailable"
         end
 
-        local hidden, restored, already_hidden = 0, 0, 0
+        local hidden, restored, already_hidden, duplicates = 0, 0, 0, 0
         local missing_rows, unresolved_rows = 0, 0
         local hidden_by_mod = ctx.state.folder_ui_state.hiddenDefaultRows
         local display_index = ctx.pool_authority.character_display_index(items)
         local row_count = ctx.common.panel_child_count(stack)
         if row_count == nil then return false, "Default pool row count unavailable" end
 
+        -- Native moves can append a fresh row while retaining the old collapsed
+        -- row for the same GUID. Choose one representative before changing any
+        -- visibility, preferring an already-visible row and then the last copy.
+        -- These row references live only for this synchronous reconciliation.
+        local resolved, representatives = {}, {}
         for ordinal = 0, row_count - 1 do
             local row = ctx.common.panel_child_at(stack, ordinal)
             if row == nil or not ctx.common.uobject_is_valid(row) then
@@ -67,34 +73,48 @@ return function(ctx)
                 local _, guid = ctx.pool_authority.character_for_row(row, display_index)
                 if guid == nil then
                     unresolved_rows = unresolved_rows + 1
-                elseif not authority_entry.guids[guid] then
-                    -- Moving/deleting can leave the source VM and shipping row alive.
-                    -- Collapse only the row whose own rendered identity resolves to
-                    -- that non-authoritative GUID. Never infer identity by array index.
-                    local current = select(1, ctx.common.try_call(
-                        function() return row:GetVisibility() end))
-                    if tonumber(current) == 1 then
-                        already_hidden = already_hidden + 1
-                    else
-                        local ok = pcall(function() row:SetVisibility(1) end)
-                        if ok then hidden = hidden + 1 end
-                    end
-                    hidden_by_mod[guid] = true
                 else
-                    -- Native stack-box widget reuse can assign a newly created
-                    -- authoritative character to a row that is still Collapsed
-                    -- from its previous stale occupant. Authority wins here: a
-                    -- resolved current-pool row must be visible even when this
-                    -- GUID was not the one the mod originally hid.
-                    local current = select(1, ctx.common.try_call(
-                        function() return row:GetVisibility() end))
-                    if tonumber(current) == 1 then
-                        local ok = pcall(function() row:SetVisibility(0) end)
-                        if ok then restored = restored + 1 end
+                    local current = tonumber(select(1, ctx.common.try_call(
+                        function() return row:GetVisibility() end)))
+                    local record = { row = row, guid = guid, visibility = current,
+                        visible = current ~= nil and current ~= 1 and current ~= 2 }
+                    resolved[#resolved + 1] = record
+                    if authority_entry.guids[guid] then
+                        local prior = representatives[guid]
+                        if prior == nil or record.visible or not prior.visible then
+                            representatives[guid] = record
+                        end
                     end
-                    hidden_by_mod[guid] = nil
                 end
             end
+        end
+
+        local visible_guids = {}
+        for _, record in ipairs(resolved) do
+            local guid = record.guid
+            local authoritative = authority_entry.guids[guid]
+            if not authoritative or representatives[guid] ~= record then
+                if authoritative then duplicates = duplicates + 1 end
+                if record.visibility == 1 then
+                    already_hidden = already_hidden + 1
+                else
+                    local ok = pcall(function() record.row:SetVisibility(1) end)
+                    if ok then hidden = hidden + 1 end
+                end
+            else
+                -- Also restore a recycled row whose previous occupant was hidden.
+                -- Never restore every copy just because the GUID is authoritative.
+                if record.visibility == 1 or record.visibility == 2 then
+                    local ok = pcall(function() record.row:SetVisibility(0) end)
+                    if ok then
+                        restored = restored + 1
+                        visible_guids[guid] = true
+                    end
+                elseif record.visible then
+                    visible_guids[guid] = true
+                end
+            end
+            if authoritative then hidden_by_mod[guid] = nil else hidden_by_mod[guid] = true end
         end
 
         ctx.logging.log("Default row visibility reconciliation: reason="
@@ -103,9 +123,19 @@ return function(ctx)
             .. " hidden=" .. tostring(hidden)
             .. " alreadyHidden=" .. tostring(already_hidden)
             .. " restored=" .. tostring(restored)
+            .. " duplicateRows=" .. tostring(duplicates)
             .. " missingRows=" .. tostring(missing_rows)
             .. " unresolvedRows=" .. tostring(unresolved_rows))
-        return true
+        return true, nil, visible_guids
+    end
+
+    function ctx.databank_ui.reconcile_default_pool(category, reason)
+        local page, _, err, stock_widget, default_vm = ctx.databank_ui.resolve_live_page(category)
+        if page == nil then return false, err end
+        local authority, authority_err = ctx.pool_authority.authoritative_pool_state(category)
+        if authority == nil then return false, authority_err end
+        return ctx.databank_ui.reconcile_default_row_visibility(
+            default_vm, stock_widget, authority.default_custom, reason)
     end
 
     function ctx.databank_ui.refresh_visible_pools(reason)
@@ -118,24 +148,25 @@ return function(ctx)
         ctx.logging.section("AUTO DATABANK POOL RENDER")
         ctx.logging.log("reason=" .. tostring(reason))
 
-        local page, databank_vm, state_err, stock_widget, default_vm, scroll =
-            ctx.databank_ui.resolve_live_humanoid_page()
+        local page, databank_vm, state_err, stock_widget, default_vm, scroll, category =
+            ctx.databank_ui.resolve_live_page()
         if page == nil or databank_vm == nil then
             ctx.logging.log("NO-OP: " .. tostring(state_err))
             refresh_in_progress = false
             return
         end
 
+        ctx.state.folder_ui_state.category = category
         ctx.folder_ui.ensure_create_folder_control(page)
 
-        local authority, auth_err = ctx.pool_authority.authoritative_pool_state()
+        local authority, auth_err = ctx.pool_authority.authoritative_pool_state(category)
         if authority == nil then
             ctx.logging.log("ABORT: " .. tostring(auth_err))
             refresh_in_progress = false
             return
         end
 
-        ctx.logging.log("Authoritative Default Custom characters=" .. tostring(authority.default_custom.count))
+        ctx.logging.log("Authoritative default characters=" .. tostring(authority.default_custom.count))
         ctx.logging.log("Authoritative player-created custom pools=" .. tostring(#authority.custom_order))
         for _, name in ipairs(authority.custom_order) do
             local entry = authority.custom_by_name[name]
@@ -150,7 +181,7 @@ return function(ctx)
         -- destination VM never converged, nine rapid passes produced both log spam
         -- and a repeatable UE4SS GameThread access violation.
         local pending = ctx.state.folder_ui_state.pendingMove
-        if pending ~= nil then
+        if pending ~= nil and pending.category == category then
             local default_vm_for_move = default_vm
             local function vm_for_pool_name(pool_name_value)
                 if tostring(pool_name_value or "") == tostring(authority.default_custom.name or "") then
@@ -177,7 +208,7 @@ return function(ctx)
             ctx.state.folder_ui_state.pendingMove = nil
         end
 
-        local global_index = ctx.pool_authority.collect_raw_vm_index(databank_vm, extra_vms)
+        local global_index = ctx.pool_authority.collect_raw_vm_index(databank_vm, extra_vms, category)
         local removed = ctx.pool_widgets.remove_dynamic_pool_widgets(page)
         ctx.state.folder_ui_state.renameButtons = {}
         ctx.state.folder_ui_state.deleteButtons = {}
@@ -334,7 +365,7 @@ return function(ctx)
 
     function ctx.databank_ui.restore_stock_only()
         ctx.logging.section("AUTO UI CLEANUP")
-        local page, databank_vm, err = ctx.databank_ui.resolve_live_humanoid_page()
+        local page, databank_vm, err = ctx.databank_ui.resolve_live_page()
         if page == nil or databank_vm == nil then ctx.logging.log("NO-OP: " .. tostring(err)); return end
         ctx.logging.log("Removed dynamic pool widgets=" .. tostring(ctx.pool_widgets.remove_dynamic_pool_widgets(page)))
 

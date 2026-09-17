@@ -54,7 +54,7 @@ end
 
 function M.ensure(page, deps)
     page = deps.unwrap(page)
-    if page == nil then return false, "humanoid page unavailable" end
+    if page == nil then return false, "Databank page unavailable" end
 
     local page_identity = deps.objectName(page)
     local prior = pages[page_identity]
@@ -130,11 +130,11 @@ end
 
 function M.resolve_move_info(deps)
     local aux = deps.findFirst("CharacterBankAuxVM_C")
-    if aux == nil then return nil, "Select a saved Custom Character first." end
+    if aux == nil then return nil, "Select a saved character or Astromech first." end
     local detail_vm = deps.unwrap(select(1, deps.readProperty(aux, "CharacterVM")))
     local selected_row = deps.unwrap(select(1, deps.readProperty(aux, "SelectedCharacterButton")))
     if detail_vm == nil or selected_row == nil then
-        return nil, "Select a saved Custom Character first."
+        return nil, "Select a saved character or Astromech first."
     end
 
     -- The generic MDViewModel binding for this row is an opaque proxy with a

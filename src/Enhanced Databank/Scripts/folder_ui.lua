@@ -1,6 +1,6 @@
 -- Enhanced Databank: folder ui.
 -- Initialized once per mod instance; shared references use explicit ctx fields.
--- Context: actions, common, folder_icons, folder_ui, logging, pool_authority, pool_mutations, popup, runtime, state, widget_helpers.
+-- Context: categories, actions, common, folder_icons, folder_ui, logging, pool_authority, pool_mutations, popup, runtime, state, widget_helpers.
 return function(ctx)
     local function register_rename_folder_button(button, pool_vm, name, icon_canvas)
         button = ctx.common.unwrap(button)
@@ -566,6 +566,7 @@ return function(ctx)
             guid = tostring(move_info.guid or ""),
             name = tostring(move_info.name or "Character"),
             sourcePoolName = tostring(move_info.sourcePoolName or ""),
+            category = move_info.category or ctx.state.folder_ui_state.category,
         }
         ctx.state.folder_ui_state.moveClickScheduled = true
         ctx.logging.log("Move Character transfer hit-zone clicked via " .. tostring(source or "unknown")
@@ -608,6 +609,7 @@ return function(ctx)
                         local guid = tostring(destination_info.guid or "")
                         local target = tostring(destination_info.targetPoolName or "")
                         local character_name = tostring(destination_info.characterName or "Character")
+                        local category = destination_info.category
 
                         -- Do not tear down the popup from inside the destination
                         -- button's HandleButtonClicked call stack. Doing so destroys
@@ -622,11 +624,13 @@ return function(ctx)
                             ctx.popup.close_move_destination_picker()
                             ctx.logging.log("Move Character deferred picker close complete")
                             ctx.actions.run_on_game_thread_after(125, function()
-                                ctx.pool_mutations.perform_move_character(guid, target, character_name)
+                                ctx.pool_mutations.perform_move_character(guid, target, character_name, category)
                             end)
                         end, destination_info.popup)
                         return
                     end
+
+                    if ctx.state.folder_ui_state.category ~= ctx.categories.current() then return end
 
                     local move_info = ctx.state.folder_ui_state.moveButtons and ctx.state.folder_ui_state.moveButtons[identity] or nil
                     if move_info ~= nil then
@@ -639,16 +643,11 @@ return function(ctx)
                                 findFirst = ctx.common.find_first,
                                 readProperty = ctx.common.read_property,
                                 findMembership = function(selected_row)
-                                    local authority, authority_err = ctx.pool_authority.authoritative_pool_state()
+                                    local category = ctx.state.folder_ui_state.category
+                                    local authority, authority_err = ctx.pool_authority.authoritative_pool_state(category)
                                     if authority == nil then return nil, authority_err end
-                                    local databank_vm = ctx.common.find_first("BrunoCharacterDatabankViewModel")
-                                    local master = ctx.common.find_first("WBP_CharacterBank_Master_C")
-                                    local page = master and select(1, ctx.common.read_property(
-                                        master, "OtherCharacterList")) or nil
-                                    local stock_widget = page and select(1, ctx.common.read_property(
-                                        page, "CharacterPool")) or nil
-                                    local default_vm = databank_vm and select(1, ctx.common.read_property(
-                                        databank_vm, "DefaultCustomCharacterPoolViewModel")) or nil
+                                    local page, databank_vm, _, stock_widget, default_vm =
+                                        ctx.databank_ui.resolve_live_page(category)
                                     if page == nil or databank_vm == nil
                                         or stock_widget == nil or default_vm == nil then
                                         return nil, "Character Databank page/ViewModels unavailable."
@@ -689,6 +688,7 @@ return function(ctx)
                                             guid = tostring(guid),
                                             name = ctx.pool_authority.character_display_name(candidate),
                                             sourcePoolName = tostring(entry.name or ""),
+                                            category = category,
                                         }, nil
                                     end
 
@@ -752,7 +752,10 @@ return function(ctx)
 
                     if not ctx.state.folder_ui_state.buttons[identity] then return end
                     ctx.logging.log("Create Folder icon clicked; deferring dialog until native click unwinds.")
-                    ctx.actions.run_on_game_thread_after(1, ctx.popup.show_create_folder_dialog)
+                    local category = ctx.state.folder_ui_state.category
+                    ctx.actions.run_on_game_thread_after(1, function()
+                        ctx.popup.show_create_folder_dialog(category)
+                    end)
                 end
             )
         end)

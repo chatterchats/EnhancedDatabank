@@ -1,6 +1,6 @@
--- Enhanced Databank v1.0.1
+-- Enhanced Databank v1.0.2
 -- Bootstrap only: each factory receives a fresh context for this mod instance.
-local VERSION = "1.0.1"
+local VERSION = "1.0.2"
 local source = debug.getinfo(1, "S").source:gsub("^@", "")
 local directory = assert(source:match("^(.*[/\\])"), "Scripts directory unavailable")
 package.path = directory .. "?.lua;" .. package.path
@@ -10,6 +10,7 @@ local modules = {
     "state",
     "actions",
     "logging",
+    "categories",
     "pool_authority",
     "pool_widgets",
     "widget_helpers",

@@ -132,6 +132,34 @@ local _, repeated_guid = ctx.pool_authority.character_for_row(kept_row, kept_ind
 assert(repeated_guid == key,
     "same-name wrappers for one GUID were treated as different characters")
 
+-- Emptying Default leaves collapsed widgets behind. Returning a character can
+-- append another typed wrapper AND another physical widget for the same GUID.
+local old_kept_row, returned_row = row("Kept", 1), row("Kept", 0)
+local still_away_row = row("Removed", 1)
+vm.PoolCharacterViewModels = { kept_wrapper, kept, removed }
+stock.BitReactorStackBox_25 = { old_kept_row, still_away_row, returned_row }
+local returning_authority = { guids = { [key] = true }, count = 1 }
+ctx.databank_ui.reconcile_default_row_visibility(vm, stock, returning_authority, "return to empty Default")
+assert(old_kept_row.visibility == 1 and returned_row.visibility == 0,
+    "returning to empty Default revealed the stale copy beside the native new row")
+assert(old_kept_row.writes == nil, "the old collapsed copy should remain untouched")
+assert(still_away_row.visibility == 1)
+-- Repair duplicates already visible from an earlier refresh/move-back.
+old_kept_row.visibility = 0
+ctx.databank_ui.reconcile_default_row_visibility(vm, stock, returning_authority, "repair duplicates")
+assert(old_kept_row.visibility == 1 and returned_row.visibility == 0)
+-- If every copy is collapsed, restore just one; repeating a refresh is stable.
+returned_row.visibility = 1
+ctx.databank_ui.reconcile_default_row_visibility(vm, stock, returning_authority, "all copies collapsed")
+local visible = 0
+for _, r in ipairs(stock.BitReactorStackBox_25) do if r.visibility == 0 then visible = visible + 1 end end
+assert(visible == 1, "exactly one authoritative character should be visible")
+local writes = (old_kept_row.writes or 0) + (returned_row.writes or 0)
+ctx.databank_ui.reconcile_default_row_visibility(vm, stock, returning_authority, "repeat")
+assert(writes == (old_kept_row.writes or 0) + (returned_row.writes or 0))
+ctx.databank_ui.reconcile_default_row_visibility(vm, stock, { guids = {}, count = 0 }, "move out again")
+assert(old_kept_row.visibility == 1 and returned_row.visibility == 1)
+
 -- Duplicate display names cannot establish a unique row identity. Fail open
 -- instead of hiding either potentially authoritative row.
 local duplicate_a = character(4, "Duplicate")

@@ -6,7 +6,7 @@ Star Wars: Zero Company.
 
 Features
 --------
-- Create native custom-character folders from the Character Databank.
+- Create native folders on the Custom Characters and Astromech Databank pages.
 - Rename and delete player-created folders.
 - Move the selected character between Player Created and custom folders.
 - Preserve the game's native pool identity, persistence, and empty-folder
@@ -69,3 +69,6 @@ Support shortcuts:
 - Shift+F8: remove Enhanced Databank UI and restore the stock presentation
 
 Third-party attribution is documented in THIRD_PARTY_NOTICES.txt.
+
+Astromechs use their own folders and Player Created pool. Moves stay within
+the selected category.

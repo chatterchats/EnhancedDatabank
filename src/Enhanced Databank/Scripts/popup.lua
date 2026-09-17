@@ -1,6 +1,6 @@
 -- Enhanced Databank: popup.
 -- Initialized once per mod instance; shared references use explicit ctx fields.
--- Context: actions, common, folder_icons, logging, pool_authority, pool_mutations, popup, runtime, state, widget_helpers.
+-- Context: categories, actions, common, folder_icons, logging, pool_authority, pool_mutations, popup, runtime, state, widget_helpers.
 return function(ctx)
     local function clear_named_slot_content(widget, property_name)
         local slot = select(1, ctx.common.read_property(widget, property_name))
@@ -12,6 +12,7 @@ return function(ctx)
     local function reset_folder_popup_state()
         ctx.state.folder_popup_state.widget = nil
         ctx.state.folder_popup_state.mode = nil
+        ctx.state.folder_popup_state.category = nil
         ctx.state.folder_popup_state.textBox = nil
         ctx.state.folder_popup_state.resultActions = {}
         ctx.state.folder_popup_state.suppressResult = false
@@ -120,7 +121,7 @@ return function(ctx)
         return entry, editable, nil
     end
 
-    local function show_folder_dialog(mode, title, body, actions, want_entry, initial_text, target_pool_vm, target_pool_name)
+    local function show_folder_dialog(mode, title, body, actions, want_entry, initial_text, target_pool_vm, target_pool_name, category)
         if ctx.state.folder_popup_state.widget ~= nil then
             local old = ctx.state.folder_popup_state.widget
             ctx.state.folder_popup_state.suppressResult = true
@@ -160,6 +161,8 @@ return function(ctx)
         clear_named_slot_content(popup, "Belowtext")
         ctx.state.folder_popup_state.widget = popup
         ctx.state.folder_popup_state.mode = mode
+        ctx.state.folder_popup_state.category = category or (target_pool_vm and
+            ctx.pool_authority.category_for_pool(target_pool_vm)) or ctx.categories.current()
         ctx.state.folder_popup_state.resultActions = result_actions
         ctx.state.folder_popup_state.suppressResult = false
         ctx.state.folder_popup_state.initialText = tostring(initial_text or "")
@@ -244,7 +247,8 @@ return function(ctx)
         local source_pool_name = tostring(move_info.sourcePoolName or "")
         local character_name = tostring(move_info.name or "Character")
 
-        local authority, authority_err = ctx.pool_authority.authoritative_pool_state()
+        local category = move_info.category or ctx.categories.current()
+        local authority, authority_err = ctx.pool_authority.authoritative_pool_state(category)
         if authority == nil then
             ctx.logging.log("Move Character picker authority failed: " .. tostring(authority_err))
             return ctx.popup.show_folder_notice("MOVE CHARACTER FAILED", "The Character Databank state could not be verified.")
@@ -280,6 +284,7 @@ return function(ctx)
         )
         if not opened or ctx.state.folder_popup_state.widget == nil then return false end
 
+        ctx.state.folder_popup_state.category = category
         ctx.state.folder_popup_state.targetCharacterGuid = guid_string
         ctx.state.folder_popup_state.targetCharacterName = character_name
         ctx.state.folder_popup_state.sourcePoolName = source_pool_name
@@ -335,6 +340,7 @@ return function(ctx)
                                 list_slot:SetPadding({ Left = 0.0, Top = 3.0, Right = 0.0, Bottom = 3.0 })
                             end)
                             ctx.state.folder_ui_state.moveDestinationButtons[ctx.common.object_name(button)] = {
+                                category = category,
                                 button = button,
                                 guid = guid_string,
                                 characterName = character_name,
@@ -385,8 +391,8 @@ return function(ctx)
         )
     end
 
-    function ctx.popup.current_custom_pool_count(name)
-        local authority, err = ctx.pool_authority.authoritative_pool_state()
+    function ctx.popup.current_custom_pool_count(name, category)
+        local authority, err = ctx.pool_authority.authoritative_pool_state(category)
         if authority == nil then return nil, err end
         local entry = authority.custom_by_name and authority.custom_by_name[tostring(name or "")] or nil
         if entry == nil then return nil, "folder is no longer authoritative" end
@@ -398,7 +404,7 @@ return function(ctx)
         name = ctx.widget_helpers.trim_string(name)
         if pool_vm == nil or name == "" then return false end
 
-        local count, count_err = ctx.popup.current_custom_pool_count(name)
+        local count, count_err = ctx.popup.current_custom_pool_count(name, ctx.pool_authority.category_for_pool(pool_vm))
         if count == nil then
             ctx.logging.log("Delete Folder preflight failed for '" .. tostring(name) .. "': " .. tostring(count_err))
             return ctx.popup.show_folder_notice("DELETE FOLDER FAILED", "The folder state could not be verified.")
@@ -437,6 +443,7 @@ return function(ctx)
         local result_tag = gameplay_tag_value(result)
         local action = result_tag and ctx.state.folder_popup_state.resultActions[result_tag] or nil
         local mode = ctx.state.folder_popup_state.mode
+        local category = ctx.state.folder_popup_state.category
         local target_pool_vm = ctx.state.folder_popup_state.targetPoolVM
         local target_pool_name = ctx.state.folder_popup_state.targetPoolName
         clear_named_slot_content(widget, "AboveText")
@@ -447,25 +454,25 @@ return function(ctx)
         if action == nil then ctx.logging.log("Databank dialog closed with unmapped result: " .. tostring(result_tag)); return end
         ctx.logging.log("Databank dialog result: mode=" .. tostring(mode) .. " action=" .. tostring(action) .. " name='" .. tostring(captured_text) .. "'")
         if mode == "create_folder" and action == "create" then
-            ctx.actions.run_on_game_thread_after(120, function() ctx.pool_mutations.perform_create_folder(captured_text) end)
+            ctx.actions.run_on_game_thread_after(120, function() ctx.pool_mutations.perform_create_folder(captured_text, category) end)
         elseif mode == "rename_folder" and action == "rename" then
             ctx.actions.run_on_game_thread_after(120, function()
-                ctx.pool_mutations.perform_rename_folder(target_pool_vm, target_pool_name, captured_text)
+                ctx.pool_mutations.perform_rename_folder(target_pool_vm, target_pool_name, captured_text, category)
             end, target_pool_vm)
         elseif mode == "delete_folder" and action == "delete" then
             ctx.actions.run_on_game_thread_after(120, function()
-                ctx.pool_mutations.perform_delete_folder(target_pool_vm, target_pool_name)
+                ctx.pool_mutations.perform_delete_folder(target_pool_vm, target_pool_name, category)
             end, target_pool_vm)
         end
     end
 
-    function ctx.popup.show_create_folder_dialog()
+    function ctx.popup.show_create_folder_dialog(category)
         return show_folder_dialog(
             "create_folder",
             "CREATE FOLDER",
             "Enter a name for the new Character Databank folder.",
             { { id = "create", label = "CREATE" }, { id = "cancel", label = "CANCEL" } },
-            true
+            true, "", nil, nil, category
         )
     end
 end

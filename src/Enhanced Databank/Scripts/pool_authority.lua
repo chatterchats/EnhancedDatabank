@@ -1,6 +1,6 @@
 -- Enhanced Databank: pool authority.
 -- Initialized once per mod instance; shared references use explicit ctx fields.
--- Context: common, logging, pool_authority.
+-- Context: categories, common, logging, pool_authority.
 return function(ctx)
     ctx.pool_authority.mdvm_library_cdo = nil
 
@@ -174,8 +174,33 @@ return function(ctx)
         return nil
     end
 
-    local function pool_vm_type(pool_vm)
+    function ctx.pool_authority.pool_vm_type(pool_vm)
         return pool_type_number(select(1, ctx.common.read_property(pool_vm, "PoolType")))
+    end
+
+    function ctx.pool_authority.category_for_pool(pool_vm)
+        local ptype = ctx.pool_authority.pool_vm_type(pool_vm)
+        for _, category in ipairs({ ctx.categories.custom, ctx.categories.astromech }) do
+            if ptype == category.default_type or ptype == category.custom_type then return category end
+        end
+    end
+
+    function ctx.pool_authority.validate_custom_pool(pool_vm, name, category)
+        category = category or ctx.pool_authority.category_for_pool(pool_vm)
+        if category == nil then return nil, "unsupported pool category" end
+        local authority, err = ctx.pool_authority.authoritative_pool_state(category)
+        if authority == nil then return nil, err end
+        local entry = authority.custom_by_name[name]
+        if entry == nil or ctx.pool_authority.pool_name(pool_vm) ~= name
+            or ctx.pool_authority.pool_vm_type(pool_vm) ~= category.custom_type then
+            return nil, "folder is no longer authoritative"
+        end
+        local vm = ctx.common.find_first("BrunoCharacterDatabankViewModel")
+        local current = vm and ctx.pool_authority.collect_extra_pool_vms(vm, authority)[name]
+        if current == nil or not ctx.common.same_object(current, pool_vm) then
+            return nil, "folder ViewModel is no longer current"
+        end
+        return entry
     end
 
     function ctx.pool_authority.pool_save_name(pool_vm)
@@ -184,18 +209,19 @@ return function(ctx)
         return ctx.common.text_value(value)
     end
 
-    function ctx.pool_authority.authoritative_pool_state()
+    function ctx.pool_authority.authoritative_pool_state(category)
+        category = category or ctx.categories.current()
         local manager = ctx.common.find_first("BitReactorCharacterPoolManager")
         if manager == nil then return nil, "BitReactorCharacterPoolManager unavailable" end
         local pools, pools_err = ctx.common.read_property(manager, "CharacterPools")
         if pools_err ~= nil or pools == nil then return nil, "CharacterPools unavailable: " .. tostring(pools_err) end
 
-        local state = { default_custom = nil, custom_by_name = {}, custom_order = {}, manager = manager }
+        local state = { default_custom = nil, custom_by_name = {}, custom_order = {}, manager = manager, category = category }
         ctx.common.array_each(pools, function(_, pool_data)
             if pool_data == nil then return end
             local name = ctx.common.text_value(select(1, ctx.common.read_property(pool_data, "CharacterPoolName")))
             local ptype = pool_type_number(select(1, ctx.common.read_property(pool_data, "CharacterPoolType")))
-            if ptype ~= 4 and ptype ~= 5 then return end
+            if ptype ~= category.default_type and ptype ~= category.custom_type then return end
 
             local entry = { name = name, pool_type = ptype, guids = {}, guid_order = {}, count = 0 }
             local chars = select(1, ctx.common.read_property(pool_data, "Characters"))
@@ -208,7 +234,7 @@ return function(ctx)
                 end
             end)
 
-            if ptype == 4 then
+            if ptype == category.default_type then
                 state.default_custom = entry
             else
                 state.custom_by_name[name] = entry
@@ -216,12 +242,12 @@ return function(ctx)
             end
         end)
 
-        if state.default_custom == nil then return nil, "authoritative Default_CustomCharacters pool not found" end
+        if state.default_custom == nil then return nil, "authoritative default pool not found: " .. category.id end
         return state, nil
     end
 
     function ctx.pool_authority.collect_extra_pool_vms(databank_vm, authority)
-        local pools = select(1, ctx.common.read_property(databank_vm, "CustomCharacterPoolViewModels"))
+        local pools = select(1, ctx.common.read_property(databank_vm, authority.category.pools_vm))
         local by_name = {}
         local seen_objects = {}
         ctx.common.array_each(pools, function(_, pool_vm)
@@ -231,9 +257,9 @@ return function(ctx)
             seen_objects[identity] = true
 
             local name = ctx.pool_authority.pool_name(pool_vm)
-            local ptype = pool_vm_type(pool_vm)
+            local ptype = ctx.pool_authority.pool_vm_type(pool_vm)
             local authoritative = authority.custom_by_name[name]
-            if authoritative == nil or ptype ~= 5 then
+            if authoritative == nil or ptype ~= authority.category.custom_type then
                 ctx.logging.log("Skipping non-authoritative/stale custom pool VM: " .. identity
                     .. " | name='" .. tostring(name) .. "' | type=" .. tostring(ptype)
                     .. " | save='" .. tostring(ctx.pool_authority.pool_save_name(pool_vm)) .. "'")
@@ -253,7 +279,8 @@ return function(ctx)
         return by_name
     end
 
-    function ctx.pool_authority.collect_raw_vm_index(databank_vm, extra_vms)
+    function ctx.pool_authority.collect_raw_vm_index(databank_vm, extra_vms, category)
+        category = category or ctx.categories.current()
         local index = {}
         local function add_pool(pool_vm)
             if pool_vm == nil then return end
@@ -267,7 +294,7 @@ return function(ctx)
             end)
         end
 
-        add_pool(select(1, ctx.common.read_property(databank_vm, "DefaultCustomCharacterPoolViewModel")))
+        add_pool(select(1, ctx.common.read_property(databank_vm, category.default_vm)))
         for _, pool_vm in pairs(extra_vms) do add_pool(pool_vm) end
         return index
     end

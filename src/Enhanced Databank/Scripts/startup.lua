@@ -19,15 +19,15 @@ return function(ctx)
 
     -- Native CommonUI activation is the fallback that should fire even when a
     -- Blueprint override is skipped/reused. Filter immediately to the actual live
-    -- humanoid Character Databank page before doing any Databank work.
+    -- supported Character Databank page before doing any Databank work.
     local common_hook_ok, common_pre_id, common_post_id = pcall(function()
         return ctx.runtime:register_hook(
             "/Script/CommonUI.CommonActivatableWidget:ActivateWidget",
             function(context, ...) end,
             function(context, ...)
                 local widget = ctx.common.unwrap(context)
-                if ctx.lifecycle.page_is_humanoid(widget) then
-                    ctx.logging.log("Native CommonUI ActivateWidget observed for humanoid Databank page; scheduling authoritative UI rebuild.")
+                if ctx.lifecycle.activate_supported_page(widget) then
+                    ctx.logging.log("Native CommonUI ActivateWidget observed for supported Databank page; scheduling authoritative UI rebuild.")
                     ctx.databank_ui.schedule_refresh("native CommonUI ActivateWidget", 120)
                 end
             end
@@ -57,14 +57,14 @@ return function(ctx)
 
     -- Both mutation surfaces remain observable for stock game paths and other mods.
     -- Enhanced Databank uses the manager-direct move that proved stable, then
-    -- performs only a one-row visibility correction if the Default VM stays stale.
+    -- reconciles Default-row visibility if the native VM or widgets stay stale.
     ctx.lifecycle.hook_native_refresh("/Script/BitReactorGame.BitReactorCharacterPoolManager:MoveCharacterToAnotherPool", "PoolManager.MoveCharacterToAnotherPool")
 
     ctx.lifecycle.hook_native_refresh("/Script/BitReactorGame.BitReactorCharacterPoolManager:RenamePlayerCreatedCharacterPool", "PoolManager.RenamePlayerCreatedCharacterPool")
 
     ctx.lifecycle.hook_native_refresh("/Script/BitReactorGame.BitReactorCharacterPoolManager:DeletePlayerCreatedCharacterPool", "PoolManager.DeletePlayerCreatedCharacterPool")
 
-    ctx.logging.log("Loaded v" .. ctx.config.VERSION .. ". Deferred work uses UE4SS owned delayed game-thread actions, including a retriggerable refresh handle; no legacy async timers or hover polling remain. MOVE uses the stable manager-direct native mutation. Refreshes apply only targeted Default-row visibility corrections for stale GUIDs; the shipping list is never regenerated. Custom pools render once per native mutation: no ViewModel convergence retry loop and no generated per-row context replay. The selected-row lookup remains click-only; no per-character widgets or manual save writes.")
+    ctx.logging.log("Loaded v" .. ctx.config.VERSION .. ". Deferred work uses UE4SS owned delayed game-thread actions, including a retriggerable refresh handle; no legacy async timers or hover polling remain. MOVE uses the stable manager-direct native mutation. Refreshes reconcile Default rows by authoritative GUID and keep one visible copy; the shipping list is never regenerated. Custom pools render once per native mutation: no ViewModel convergence retry loop and no generated per-row context replay. The selected-row lookup remains click-only; no per-character widgets or manual save writes.")
 
     ctx.logging.log("On Databank activation and native pool mutations it rebuilds visible folders from authoritative CharacterPoolManager ownership.")
 

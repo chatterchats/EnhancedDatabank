@@ -1,8 +1,9 @@
 -- Enhanced Databank: pool mutations.
 -- Initialized once per mod instance; shared references use explicit ctx fields.
--- Context: actions, common, logging, pool_authority, pool_mutations, popup, state, widget_helpers.
+-- Context: categories, actions, common, databank_ui, logging, pool_authority, pool_mutations, popup, state, widget_helpers.
 return function(ctx)
-    function ctx.pool_mutations.perform_move_character(guid_string, target_pool_name, character_name)
+    function ctx.pool_mutations.perform_move_character(guid_string, target_pool_name, character_name, category)
+        category = category or ctx.categories.current()
         guid_string = tostring(guid_string or "")
         target_pool_name = ctx.widget_helpers.trim_string(target_pool_name)
         character_name = ctx.widget_helpers.trim_string(character_name)
@@ -13,7 +14,7 @@ return function(ctx)
             return
         end
 
-        local authority, authority_err = ctx.pool_authority.authoritative_pool_state()
+        local authority, authority_err = ctx.pool_authority.authoritative_pool_state(category)
         if authority == nil then
             ctx.logging.log("Move Character authority failed: " .. tostring(authority_err))
             ctx.popup.show_folder_notice("MOVE CHARACTER FAILED", "The Character Databank state could not be verified.")
@@ -32,6 +33,14 @@ return function(ctx)
             ctx.popup.show_folder_notice("MOVE CHARACTER FAILED", "The character could not be found in the current Databank state.")
             return
         end
+        local source_entry = authority.custom_by_name[tostring(current_pool_name or "")]
+        if tostring(current_pool_name or "") == tostring(authority.default_custom.name) then
+            source_entry = authority.default_custom
+        end
+        if source_entry == nil or not source_entry.guids[guid_string] then
+            ctx.popup.show_folder_notice("MOVE CHARACTER FAILED", "The character is no longer in this Databank category.")
+            return
+        end
         if tostring(current_pool_name or "") == target_pool_name then
             return
         end
@@ -40,53 +49,6 @@ return function(ctx)
             == tostring(authority.default_custom.name or "")
         local target_is_default = target_pool_name == tostring(authority.default_custom.name or "")
 
-        -- Manager-direct moves are the stable persistence path, but the shipping
-        -- Default pool can retain the moved character in its live ViewModel array.
-        -- Never regenerate or reparent that pool. Resolve the physical row through
-        -- its rendered identity; the typed array and widget stack can diverge after
-        -- a new character is inserted.
-        local function set_default_row_visibility(visibility, reason)
-            local databank_vm = ctx.common.find_first("BrunoCharacterDatabankViewModel")
-            local default_vm = databank_vm and select(1, ctx.common.read_property(
-                databank_vm, "DefaultCustomCharacterPoolViewModel")) or nil
-            local items = default_vm and select(1, ctx.common.read_property(
-                default_vm, "PoolCharacterViewModels")) or nil
-            local master = ctx.common.find_first("WBP_CharacterBank_Master_C")
-            local page = master and select(1, ctx.common.read_property(master, "OtherCharacterList")) or nil
-            local stock_widget = page and select(1, ctx.common.read_property(page, "CharacterPool")) or nil
-            local stack = stock_widget and select(1, ctx.common.read_property(
-                stock_widget, "BitReactorStackBox_25")) or nil
-            local row_count = stack and ctx.common.panel_child_count(stack) or nil
-            if items == nil or stack == nil or row_count == nil then
-                ctx.logging.log("Default row visibility reconcile deferred/unavailable: guid="
-                    .. tostring(guid_string) .. " reason=" .. tostring(reason))
-                return false
-            end
-
-            local display_index = ctx.pool_authority.character_display_index(items)
-            local row, wanted_index = nil, nil
-            for index = 0, row_count - 1 do
-                local candidate_row = ctx.common.panel_child_at(stack, index)
-                local _, candidate_guid = ctx.pool_authority.character_for_row(
-                    candidate_row, display_index)
-                if candidate_guid == guid_string then
-                    row, wanted_index = candidate_row, index
-                    break
-                end
-            end
-            if row == nil then
-                ctx.logging.log("Default row visibility reconcile could not resolve row: guid="
-                    .. tostring(guid_string) .. " reason=" .. tostring(reason))
-                return false
-            end
-            local ok, visibility_err = pcall(function() row:SetVisibility(visibility) end)
-            ctx.logging.log("Default row visibility reconciled: index=" .. tostring(wanted_index)
-                .. " guid=" .. tostring(guid_string) .. " visibility="
-                .. tostring(visibility) .. " reason=" .. tostring(reason)
-                .. " ok=" .. tostring(ok) .. " err=" .. tostring(visibility_err))
-            return ok
-        end
-
         local manager = authority.manager or ctx.common.find_first("BitReactorCharacterPoolManager")
         if manager == nil then
             ctx.popup.show_folder_notice("MOVE CHARACTER FAILED", "The Character Pool Manager is not ready.")
@@ -94,6 +56,7 @@ return function(ctx)
         end
 
         ctx.state.folder_ui_state.pendingMove = {
+            category = category,
             guid = tostring(guid_string),
             sourcePoolName = tostring(current_pool_name or ""),
             targetPoolName = tostring(target_pool_name),
@@ -119,13 +82,17 @@ return function(ctx)
             return
         end
 
-        if source_is_default then
-            set_default_row_visibility(1, "moved out of Default")
-        elseif target_is_default then
-            local visible_now = set_default_row_visibility(0, "moved into Default")
-            if not visible_now then
+        if source_is_default or target_is_default then
+            local reason = source_is_default and "moved out of Default" or "moved into Default"
+            local _, reconcile_err, visible = ctx.databank_ui.reconcile_default_pool(category, reason)
+            if reconcile_err ~= nil then
+                ctx.logging.log("Default row reconciliation deferred/unavailable: " .. tostring(reconcile_err))
+            end
+            if target_is_default and not (visible and visible[guid_string]) then
                 ctx.actions.run_on_game_thread_after(160, function()
-                    set_default_row_visibility(0, "moved into Default delayed")
+                    -- Re-read ownership as well as widgets. A subsequent move may
+                    -- have taken this character out again before the callback runs.
+                    ctx.databank_ui.reconcile_default_pool(category, "moved into Default delayed")
                 end)
             end
         end
@@ -137,7 +104,8 @@ return function(ctx)
         -- The manager refresh hook rebuilds the generated custom-folder rows.
     end
 
-    function ctx.pool_mutations.perform_create_folder(name)
+    function ctx.pool_mutations.perform_create_folder(name, category)
+        category = category or ctx.categories.current()
         name = ctx.widget_helpers.trim_string(name)
         if name == "" then
             ctx.popup.show_folder_notice("INVALID FOLDER NAME", "Enter a folder name before choosing Create.")
@@ -155,7 +123,7 @@ return function(ctx)
             ctx.popup.show_folder_notice("FOLDER NAME UNAVAILABLE", "A folder with that name already exists. Choose another name.")
             return
         end
-        local pool, create_err = ctx.common.try_call(function() return ctx.common.unwrap(vm:CreatePool(FText(name), 5)) end)
+        local pool, create_err = ctx.common.try_call(function() return ctx.common.unwrap(vm:CreatePool(FText(name), category.custom_type)) end)
         if create_err ~= nil or pool == nil then
             ctx.logging.log("CreatePool failed for '" .. tostring(name) .. "': " .. tostring(create_err))
             ctx.popup.show_folder_notice("CREATE FOLDER FAILED", "Zero Company did not create the folder.")
@@ -165,7 +133,7 @@ return function(ctx)
         -- CreatePool's native refresh hook schedules the authoritative renderer.
     end
 
-    function ctx.pool_mutations.perform_rename_folder(pool_vm, old_name, new_name)
+    function ctx.pool_mutations.perform_rename_folder(pool_vm, old_name, new_name, category)
         pool_vm = ctx.common.unwrap(pool_vm)
         old_name = ctx.widget_helpers.trim_string(old_name)
         new_name = ctx.widget_helpers.trim_string(new_name)
@@ -176,6 +144,12 @@ return function(ctx)
         end
         if new_name == "" then
             ctx.popup.show_folder_notice("INVALID FOLDER NAME", "Enter a folder name before choosing Rename.")
+            return
+        end
+        local entry, entry_err = ctx.pool_authority.validate_custom_pool(pool_vm, old_name, category)
+        if entry == nil then
+            ctx.logging.log("Rename Folder authority check failed: " .. tostring(entry_err))
+            ctx.popup.show_folder_notice("RENAME FOLDER FAILED", "The selected folder is no longer available.")
             return
         end
         if new_name == old_name then
@@ -215,7 +189,7 @@ return function(ctx)
         ctx.logging.log("RENAME FOLDER SUCCESS: '" .. tostring(old_name) .. "' -> '" .. tostring(new_name) .. "'")
     end
 
-    function ctx.pool_mutations.perform_delete_folder(pool_vm, name)
+    function ctx.pool_mutations.perform_delete_folder(pool_vm, name, category)
         pool_vm = ctx.common.unwrap(pool_vm)
         name = ctx.widget_helpers.trim_string(name)
         if pool_vm == nil or name == "" then
@@ -225,7 +199,8 @@ return function(ctx)
 
         -- Re-check authoritative ownership at the moment of deletion instead of
         -- trusting the count captured when the button was rendered.
-        local count, count_err = ctx.popup.current_custom_pool_count(name)
+        local entry, count_err = ctx.pool_authority.validate_custom_pool(pool_vm, name, category)
+        local count = entry and entry.count
         if count == nil then
             ctx.logging.log("Delete Folder authority check failed for '" .. tostring(name) .. "': " .. tostring(count_err))
             ctx.popup.show_folder_notice("DELETE FOLDER FAILED", "The folder state could not be verified.")

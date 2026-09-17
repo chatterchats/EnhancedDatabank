@@ -23,8 +23,9 @@ database or rewrite save files.
 - Cooperate with Character Share's compact Import action when both mods are
   enabled.
 
-Enhanced Databank currently affects the **Custom Characters** Databank page.
-It does not add folders to the Astromech page.
+Enhanced Databank supports the **Custom Characters** and **Astromech** Databank
+pages. Each category has its own folders and Player Created pool; characters
+can only move between folders in the same category.
 
 ## Requirements
 
@@ -83,7 +84,7 @@ Mod Manager and Zero Company Mod Command.
 
 ## Using Enhanced Databank
 
-Open **Character Databank** and select **Custom Characters**.
+Open **Character Databank** and select **Custom Characters** or **Astromech**.
 
 - Select the folder-plus action beside **Create New** to create a folder.
 - Use the pencil action on a custom folder to rename it.
@@ -152,10 +153,11 @@ Blueprint classes and runtime UMG widget trees.
 
 For changes to folders or movement, test at minimum:
 
-- cold entry into the Databank;
+- cold entry into both Databank categories and switching between them;
 - Default to custom, custom to Default, and custom to custom moves;
 - moving the final character out of a folder;
-- create, rename, and delete persistence after a restart;
+- create, rename, and delete persistence after a restart in both categories;
+- switching categories while a folder dialog or deferred move is pending;
 - coexistence with Character Share; and
 - repeated Databank entry without duplicate controls.
 

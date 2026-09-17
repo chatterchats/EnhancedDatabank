@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.2]
+
+### Added
+
+- Astromech folder creation, rename, empty-folder deletion, and character moves
+  using native Astromech pools. Folder actions retain their category across tab
+  switches, and moves cannot cross between Custom Characters and Astromechs.
+
+### Fixed
+
+- Keep a single visible row per character GUID when moving a character back to
+  Player Created after emptying it, in both Custom Characters and Astromechs.
+  Prefer the native visible row over old collapsed copies. Immediate moves and
+  delayed recovery now use the same reconciliation and recheck current ownership.
+
 ## [1.0.1]
 
 ### Fixed

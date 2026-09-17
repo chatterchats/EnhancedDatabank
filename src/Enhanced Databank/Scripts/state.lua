@@ -67,6 +67,7 @@ return function(ctx)
     ctx.state.DIALOG_RESULT_SECONDARY = "br.Customization.Slot.Character.Class"
 
     ctx.state.folder_ui_state = {
+        category = nil,
         pageIdentity = nil,
         page = nil,
         row = nil,
@@ -86,6 +87,7 @@ return function(ctx)
     }
 
     ctx.state.folder_popup_state = {
+        category = nil,
         widget = nil,
         mode = nil,
         textBox = nil,

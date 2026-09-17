@@ -9,6 +9,7 @@ workflow already packages that entire directory.
 | --- | --- |
 | `hook_registry.lua`, `actions.lua` | Own both hook IDs, guarded callbacks, delayed handles, cancellation, and reload teardown. |
 | `common.lua`, `logging.lua`, `state.lua` | UObject helpers, per-instance logging, constants, mutable UI state, and callback slots. |
+| `categories.lua` | Native Custom Characters/Astromech page, pool-type and ViewModel bindings; active-tab tracking. |
 | `pool_authority.lua`, `pool_mutations.lua` | Read native ownership and apply native create/rename/delete/move operations. |
 | `pool_widgets.lua`, `databank_ui.lua` | Render authoritative pools and coalesce screen refreshes. |
 | `widget_helpers.lua`, `folder_icons.lua`, `folder_ui.lua` | Native widget composition, glyphs, folder controls, click/hover routing, and control adoption. |
@@ -46,6 +47,7 @@ luajit tests/reload_runtime_test.lua "src/Enhanced Databank/Scripts"
 luajit tests/widget_reload_test.lua "src/Enhanced Databank/Scripts"
 luajit tests/module_bootstrap_test.lua "src/Enhanced Databank/Scripts"
 luajit tests/refresh_test.lua "src/Enhanced Databank/Scripts"
+luajit tests/astromech_test.lua "src/Enhanced Databank/Scripts"
 python3 tests/version_bump_test.py
 ```
 
@@ -56,3 +58,20 @@ several characters, and check the shared Import/Create Folder row with Character
 Share enabled.
 
 The Lua tests also run with `lua5.4` in place of `luajit`.
+
+Category bindings come from the local reverse-engineering reference's
+`Bruno.lua`, `BitReactorGame_enums.lua`, and
+`WBP_CharacterBank_Master.lua` type dumps. Both supported pages use
+`WBP_CharacterBank_Page_CharacterList_C` and the same native pool-row class.
+Astromechs use pool types 2/3 and the singular array property
+`AstromechCharacterPoolViewModel`. The renderer keeps one active page's control
+registry, adopts its existing controls on return, and captures category bindings
+before deferred mutations. In-game validation of the new Astromech path remains
+required; mocked engine tests cannot establish Blueprint/UE4SS stability.
+
+Default-row reconciliation chooses one physical row per unambiguously resolved
+GUID, preferring an already-visible native row over collapsed stale copies.
+Both native refreshes and immediate/delayed move handling use this path; delayed
+recovery reads current ownership instead of blindly revealing a previous target.
+The regression tests cover repeated empty/move-back cycles for both categories
+and a second move that runs before a delayed visibility recovery.
