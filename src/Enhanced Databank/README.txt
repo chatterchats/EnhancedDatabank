@@ -1,5 +1,5 @@
-Enhanced Databank v1.0.0
-========================
+Enhanced Databank
+================
 
 Enhanced Databank unlocks native folder management for custom characters in
 Star Wars: Zero Company.
@@ -30,16 +30,19 @@ to ue4ss/Mods/mods.txt.
 
 Use
 ---
-Open Character Databank and select Custom Characters.
+Open Character Databank and select Custom Characters or Astromechs. Folders load
+automatically on entry; the mod does not continuously search for Databank widgets
+while you are in other menus or gameplay.
 
 - The folder-plus button beside Create New creates a folder.
 - The pencil and trash buttons rename or delete custom folders.
 - Select a character and use Move beside the normal character actions to pick
   another folder.
 
-Only empty custom folders can be deleted. Player Created is protected. Moving
-the final character out of a custom folder may allow the game to remove that
-now-empty folder as part of its normal native behavior.
+Each category has its own folders and Player Created pool. Moves stay within
+the selected category. Only empty custom folders can be deleted. Player Created
+is protected. Moving the final character out of a custom folder may allow the
+game to remove that now-empty folder as part of its normal native behavior.
 
 Requirements
 ------------
@@ -69,6 +72,3 @@ Support shortcuts:
 - Shift+F8: remove Enhanced Databank UI and restore the stock presentation
 
 Third-party attribution is documented in THIRD_PARTY_NOTICES.txt.
-
-Astromechs use their own folders and Player Created pool. Moves stay within
-the selected category.

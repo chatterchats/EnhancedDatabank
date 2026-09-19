@@ -2,43 +2,34 @@
 -- Initialized once per mod instance; shared references use explicit ctx fields.
 -- Context: actions, common, config, databank_ui, folder_ui, lifecycle, logging, runtime.
 return function(ctx)
-    ctx.actions.run_on_game_thread_after(0, function() ctx.runtime:cleanup_ui() end)
-
     ctx.actions.api.cancel_all("mod script reloaded")
 
     ctx.folder_ui.install_folder_button_click_hook()
 
     ctx.folder_ui.install_action_hover_hooks()
 
-    ctx.actions.api.cancel_group(
-        "lifecycle_hook_install",
-        "lifecycle installer restarted"
-    )
-
-    ctx.lifecycle.attempt_install_databank_lifecycle_hooks("initial mod load")
-
-    -- Native CommonUI activation is the fallback that should fire even when a
-    -- Blueprint override is skipped/reused. Filter immediately to the actual live
-    -- supported Character Databank page before doing any Databank work.
-    local common_hook_ok, common_pre_id, common_post_id = pcall(function()
-        return ctx.runtime:register_hook(
-            "/Script/CommonUI.CommonActivatableWidget:ActivateWidget",
-            function(context, ...) end,
-            function(context, ...)
-                local widget = ctx.common.unwrap(context)
-                if ctx.lifecycle.activate_supported_page(widget) then
-                    ctx.logging.log("Native CommonUI ActivateWidget observed for supported Databank page; scheduling authoritative UI rebuild.")
-                    ctx.databank_ui.schedule_refresh("native CommonUI ActivateWidget", 120)
-                end
-            end
-        )
-    end)
-
-    if common_hook_ok and common_pre_id ~= nil then
-        ctx.logging.log("Hooked native CommonUI ActivateWidget fallback.")
-    else
-        ctx.logging.log("CommonUI ActivateWidget hook unavailable: " .. tostring(common_pre_id))
+    -- Native CommonUI is resident at startup; Blueprint hooks are installed only
+    -- after a relevant live widget activates. Both sources share one request.
+    for _, event in ipairs({ "ActivateWidget", "DeactivateWidget" }) do
+        local callback = event == "ActivateWidget" and ctx.lifecycle.on_widget_activated
+            or ctx.lifecycle.on_widget_deactivated
+        local ok, id = pcall(function()
+            return ctx.runtime:register_hook(
+                "/Script/CommonUI.CommonActivatableWidget:" .. event,
+                function() end,
+                function(context) callback(context, "native CommonUI " .. event) end)
+        end)
+        if ok and id ~= nil then
+            ctx.logging.log("Hooked native CommonUI " .. event .. " fallback.")
+        else
+            ctx.logging.log("CommonUI " .. event .. " hook unavailable: " .. tostring(id))
+        end
     end
+
+    ctx.actions.run_on_game_thread_after(0, function()
+        ctx.runtime:cleanup_ui()
+        ctx.lifecycle.recover_open_databank()
+    end)
 
     -- Databank-VM mutations still matter for stock game / Character Share paths.
     ctx.lifecycle.hook_native_refresh("/Script/Bruno.BrunoCharacterDatabankViewModel:CreatePool", "DatabankVM.CreatePool")

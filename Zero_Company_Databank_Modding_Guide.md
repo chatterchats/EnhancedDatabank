@@ -1,5 +1,7 @@
 # STAR WARS Zero Company — Character Databank Modding Guide
 
+> **September 18, 2026 update:** See the consolidated [Practical UE4SS UI Modding Notes](docs/practical-ue4ss-ui-modding-notes.md) for findings through Enhanced Databank v1.0.3 and related mods. This document preserves the investigation history. Earlier per-row decoration/context-replay recipes, humanoid-only scope, and stock-row index assumptions are superseded by the current guide and source.
+
 > **Status:** empirical reverse-engineering notes supporting **Enhanced Databank v1.0.0**. Historical `v9`–`v13` labels below refer only to internal pre-release experiments, not public releases.  
 > **Observed game build:** `++ProjectBruno+Stable-CL-196985`  
 > **Observed UE4SS build:** `v3.0.1 Beta #0`  

@@ -141,8 +141,11 @@ other Databank mods, reproduction steps, and the relevant logs.
 `src/Enhanced Databank` is the distributable mod directory. There is no build
 or bundle step.
 
-The reverse-engineering and stability notes used during development are kept in
-[`Zero_Company_Databank_Modding_Guide.md`](Zero_Company_Databank_Modding_Guide.md).
+The consolidated UI findings are in
+[Practical UE4SS UI Modding Notes](docs/practical-ue4ss-ui-modding-notes.md),
+covering Character Share, Enhanced Databank, Colors+, and related UI work.
+The [historical Databank investigation](Zero_Company_Databank_Modding_Guide.md)
+retains the detailed experiments and stability history.
 
 ## Development
 
@@ -150,6 +153,10 @@ Copy or link `src/Enhanced Databank` into the game's `ue4ss/Mods` directory,
 then test changes on a supported game build. A Lua syntax check is useful, but
 in-game verification is required because the mod interacts with generated
 Blueprint classes and runtime UMG widget trees.
+
+See [Script architecture](docs/architecture.md) for module responsibilities,
+reload rules, and local test commands. [Lifecycle validation](docs/lifecycle-validation.md)
+documents entry-driven initialization and its in-game verification status.
 
 For changes to folders or movement, test at minimum:
 
@@ -163,8 +170,9 @@ For changes to folders or movement, test at minimum:
 
 ## Releasing
 
-The manual **Release to Nexus Mods** workflow validates metadata, packages the
-mod, retains the ZIP as a workflow artifact, and can publish it to Nexus Mods.
+The manually dispatched **Release to Nexus Mods** workflow validates metadata,
+packages the mod, and uploads it to Nexus Mods. Dispatching it publishes a release;
+use a local ZIP for package-only validation.
 
 1. Add release notes beneath `## [Unreleased]` in
    [`CHANGELOG.md`](CHANGELOG.md).
@@ -174,24 +182,16 @@ mod, retains the ZIP as a workflow artifact, and can publish it to Nexus Mods.
    ./scripts/bump_version.py patch
    ```
 
-3. Verify the ZIP in ZCOM Mod Manager and with a clean manual installation.
-4. For Nexus publishing, create the Nexus mod page and initial file, then add
-   these repository secrets:
-
-   - `NEXUSMODS_API_KEY`
-   - `NEXUSMODS_MOD_ID`
-   - `NEXUSMODS_FILE_ID`
-
-5. Run the workflow from the repository's **Actions** tab. Disable its
-   `publish_to_nexus` input for a package-only validation run.
+3. Run the [local checks](docs/architecture.md#local-checks). Package only
+   `src/Enhanced Databank`, retaining the top-level `Enhanced Databank` directory,
+   into `dist/Enhanced Databank V#.#.#.zip`. Keep generated archives under `dist/`.
+4. Verify the ZIP in ZCOM Mod Manager and with a clean manual installation.
+5. When ready to publish, configure the `NEXUSMODS_API_KEY` repository secret and
+   run the workflow from **Actions**. The workflow resolves this project's Nexus
+   mod ID and active file through the API; it requires exactly one active file.
 
 The workflow packages `src/Enhanced Databank` as
 `Enhanced Databank V#.#.#.zip`.
-
-## Development
-
-See [Script architecture](docs/architecture.md) for module responsibilities,
-shared-state and reload rules, and local regression-test commands.
 
 ## Attribution
 

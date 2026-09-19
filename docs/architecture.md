@@ -47,6 +47,7 @@ luajit tests/reload_runtime_test.lua "src/Enhanced Databank/Scripts"
 luajit tests/widget_reload_test.lua "src/Enhanced Databank/Scripts"
 luajit tests/create_folder_control_test.lua "src/Enhanced Databank/Scripts"
 luajit tests/module_bootstrap_test.lua "src/Enhanced Databank/Scripts"
+luajit tests/lifecycle_test.lua "src/Enhanced Databank/Scripts"
 luajit tests/refresh_test.lua "src/Enhanced Databank/Scripts"
 luajit tests/astromech_test.lua "src/Enhanced Databank/Scripts"
 python3 tests/version_bump_test.py
@@ -65,6 +66,10 @@ both with and without Character Share. They verify stable row widths and child
 counts, restored click/hover routing, and a failed append followed by a retry.
 
 The Lua tests also run with `lua5.4` in place of `luajit`.
+
+Lifecycle initialization is event-driven, with one reload-recovery probe and at
+most 20 owned attempts per activation. See [lifecycle validation](lifecycle-validation.md)
+for API evidence, regression scenarios, and the remaining in-game checks.
 
 Category bindings come from the local reverse-engineering reference's
 `Bruno.lua`, `BitReactorGame_enums.lua`, and

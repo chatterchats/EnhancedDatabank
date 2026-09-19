@@ -31,10 +31,21 @@ for i = 1, 10 do ctx.databank_ui.schedule_refresh("burst " .. i, 80) end
 flush()
 assert(#calls == 3 and calls[3] == "burst 10")
 assert(handles == 1 and next(runtime.actions) == nil)
+ctx.databank_ui.schedule_refresh("closed activation", 0, function() return false end)
+flush()
+assert(#calls == 3, "retired activation rendered")
+ctx.databank_ui.schedule_refresh("old activation", 0, function() return false end)
+ctx.databank_ui.schedule_refresh("new activation", 0, function() return true end)
+flush()
+assert(#calls == 4 and calls[4] == "new activation", "stable callback used an old guard")
+ctx.databank_ui.schedule_refresh("closed activation", 0, function() return false end)
+ctx.databank_ui.schedule_refresh("native mutation", 120)
+flush()
+assert(#calls == 5 and calls[5] == "native mutation", "activation guard leaked into mutation")
 ctx.databank_ui.schedule_refresh("retired", 120)
 runtime.alive = false
 flush()
-assert(#calls == 3, "retired runtime rendered")
+assert(#calls == 5, "retired runtime rendered")
 
 -- A rebuild filters stale typed rows using the manager's current GUID set.
 ctx.common = {

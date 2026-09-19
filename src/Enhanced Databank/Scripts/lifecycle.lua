@@ -1,293 +1,290 @@
--- Enhanced Databank: lifecycle.
--- Initialized once per mod instance; shared references use explicit ctx fields.
--- Context: categories, actions, common, databank_ui, folder_ui, lifecycle, logging, pool_authority, runtime, state.
+-- Enhanced Databank: activation-owned lifecycle initialization.
+-- Context: actions, categories, common, databank_ui, lifecycle, logging, pool_authority, runtime, state.
 return function(ctx)
-    function ctx.lifecycle.activate_supported_page(page)
-        return ctx.categories.activate(page)
-    end
+    local MASTER_CLASS = "WBP_CharacterBank_Master_C"
+    local PAGE_CLASS = "WBP_CharacterBank_Page_CharacterList_C"
+    local MASTER_PATH = "/Game/Game/UI/Strategy/Customization/Widgets/CharacterDatabank/WBP_CharacterBank_Master.WBP_CharacterBank_Master_C:BP_OnActivated"
+    local PAGE_PATH = "/Game/Game/UI/Strategy/Customization/Widgets/CharacterDatabank/WBP_CharacterBank_Page_CharacterList.WBP_CharacterBank_Page_CharacterList_C:BP_OnActivated"
+    local MASTER_DEACTIVATED_PATH = MASTER_PATH:gsub(":BP_OnActivated$", ":BP_OnDeactivated")
+    local PAGE_DEACTIVATED_PATH = PAGE_PATH:gsub(":BP_OnActivated$", ":BP_OnDeactivated")
+    local GROUP = "lifecycle_hook_install"
+    local MAX_ATTEMPTS = 20
+    local MAX_ENTRY_ATTEMPTS = 6
+    local master_hook_installed, page_hook_installed = false, false
+    local installed = {}
+    local request = nil
 
-    -- The CharacterBank Blueprint packages are not necessarily loaded when UE4SS
-    -- starts on a cold game launch. RegisterHook cannot hook a Blueprint UFunction
-    -- before that UFunction exists, so install these lifecycle hooks lazily once the
-    -- cooked CharacterBank functions appear. This is intentionally a lightweight
-    -- object-existence poll and shuts itself off once both hooks are installed.
     ctx.state.decorate_current_character_rows = function(reason)
         ctx.logging.log("Move Character row rescan suppressed for stability: reason=" .. tostring(reason))
         return false
     end
 
-    local MASTER_ACTIVATED_PATH = "/Game/Game/UI/Strategy/Customization/Widgets/CharacterDatabank/WBP_CharacterBank_Master.WBP_CharacterBank_Master_C:BP_OnActivated"
-
-    local PAGE_ACTIVATED_PATH = "/Game/Game/UI/Strategy/Customization/Widgets/CharacterDatabank/WBP_CharacterBank_Page_CharacterList.WBP_CharacterBank_Page_CharacterList_C:BP_OnActivated"
-
-    local CHARACTER_CLICKED_PATH = "/Game/Game/UI/Strategy/Customization/Widgets/CharacterDatabank/WBP_CharacterBank_CreatedCharacterItem.WBP_CharacterBank_CreatedCharacterItem_C:BP_OnClicked"
-
-    local FOLDER_CLICKED_PATH = "/Game/Game/UI/Strategy/Customization/Widgets/CharacterDatabank/WBP_CharacterBank_CreatedCharacterFolder.WBP_CharacterBank_CreatedCharacterFolder_C:BP_OnClicked"
-
-    local master_hook_installed = false
-
-    local page_hook_installed = false
-
-    -- The release exposes no per-row Move controls, so their click/rescan hooks are
-    -- intentionally treated as satisfied and are never registered.
-    local character_click_hook_installed = true
-
-    local folder_click_hook_installed = true
-
-    local lifecycle_retry_active = true
-
-    local lifecycle_retry_count = 0
-
-    local function live_master_available()
-        local master = ctx.common.find_first("WBP_CharacterBank_Master_C")
-        if master == nil then return false end
-        local identity = ctx.common.object_name(master)
-        return string.find(identity, "/Engine/Transient", 1, true) ~= nil
+    -- CommonUI fires for every menu. Inspect only its supplied context here: no
+    -- global searches, reflected widget-tree reads, or timers for unrelated UI/CDOs.
+    local function widget_kind(widget)
+        if not ctx.common.uobject_is_valid(widget) then return nil end
+        local identity = ctx.common.object_name(widget)
+        if not identity:find(" /Engine/Transient.", 1, true) then return nil end
+        if identity:sub(1, #MASTER_CLASS + 1) == MASTER_CLASS .. " " then
+            return "master"
+        end
+        if identity:sub(1, #PAGE_CLASS + 1) == PAGE_CLASS .. " " then
+            local category = ctx.categories.for_page(widget)
+            if category then return "page", category end
+        end
     end
 
-    local function live_supported_page_available()
-        local master = ctx.common.find_first("WBP_CharacterBank_Master_C")
-        if master == nil then return false end
-        local page = select(1, ctx.common.read_property(master, "OtherCharacterList"))
-        if page == nil then
-            page = select(1, ctx.common.read_property(master, "AstromechCharacterList"))
+    local function master_is_visible(master)
+        if not ctx.common.uobject_is_valid(master) then return false, "master unavailable/invalid" end
+        if widget_kind(master) ~= "master" then
+            return false, "not a runtime master: " .. ctx.common.object_name(master)
         end
-        return ctx.categories.for_page(page) ~= nil
+        -- CommonUI stacks derive from UWidget, not UPanelWidget. Their displayed
+        -- content need not have a panel parent or be directly in the viewport.
+        -- Neither GetParent():IsValid() nor IsInViewport() is an entry prerequisite.
+        -- Avoid master:IsActivated() too: Character Share observed native AVs
+        -- during transition. Stable identity plus page/tree/VM readiness follows.
+        local visible, err = ctx.common.try_call(function() return master:IsVisible() end)
+        if err ~= nil then return false, "master visibility unavailable: " .. tostring(err) end
+        if visible ~= true then return false, "master not visible: " .. tostring(visible) end
+        return true
     end
 
-    local function install_master_activation_hook()
-        if master_hook_installed then return true, nil end
-        -- RegisterHook on a not-yet-loaded Blueprint UFunction causes UE4SS to print
-        -- a full exception/stack trace even when pcall catches it. Avoid calling it
-        -- at all until a live CharacterBank master exists; by then the generated
-        -- Blueprint class/UFunction is resident and hook registration is safe.
-        if not live_master_available() then
-            return false, "live master not loaded"
-        end
+    local function is_active(widget)
+        if widget_kind(widget) == "master" then return master_is_visible(widget) end
+        return ctx.common.uobject_is_valid(widget)
+            and select(1, ctx.common.try_call(function() return widget:IsActivated() end)) == true
+    end
 
-        local ok, hook_id = pcall(function()
-            return ctx.runtime:register_hook(MASTER_ACTIVATED_PATH, function(context, ...)
-                local master = ctx.common.unwrap(context)
-                local identity = ctx.common.object_name(master)
-                if string.find(identity, "/Engine/Transient", 1, true) then
-                    ctx.logging.log("Character Databank master activated; scheduling authoritative UI rebuild.")
-                    ctx.databank_ui.schedule_refresh("Databank master BP_OnActivated", 140)
-                end
+    local function retire_request(reason)
+        request = nil -- Dispatched callbacks must fail ownership even if cancel loses a race.
+        ctx.actions.api.cancel_group(GROUP, reason)
+    end
+
+    local function install_hook(path, label, callback)
+        if installed[path] then return true end
+        local ok, id = pcall(function()
+            return ctx.runtime:register_hook(path, function(context)
+                callback(context, label)
             end)
         end)
-
-        if ok and hook_id ~= nil then
-            master_hook_installed = true
-            ctx.logging.log("Hooked Character Databank master BP_OnActivated (lazy-safe installer).")
-            return true, nil
+        if ok and id ~= nil then
+            installed[path] = true
+            ctx.logging.log("Hooked " .. label .. " on Databank activation.")
+            return true
         end
-        return false, tostring(hook_id)
+        return false
     end
 
-    local function install_page_activation_hook()
-        if page_hook_installed then return true, nil end
-        -- Same rationale as the master hook: require the live supported page before
-        -- asking UE4SS to register the Blueprint override hook. This keeps cold-start
-        -- lazy installation silent instead of generating an expected stack trace.
-        if not live_supported_page_available() then
-            return false, "live supported page not loaded"
+    local function install_hooks(master, page)
+        -- Live instances prove their Blueprint functions are resident. RegisterHook
+        -- on an unloaded Blueprint logs an exception even when wrapped in pcall.
+        if not master_hook_installed and widget_kind(master) == "master" then
+            master_hook_installed = install_hook(MASTER_PATH, "Databank master BP_OnActivated",
+                ctx.lifecycle.on_widget_activated)
+                and install_hook(MASTER_DEACTIVATED_PATH, "Databank master BP_OnDeactivated",
+                    ctx.lifecycle.on_widget_deactivated)
         end
+        if not page_hook_installed and widget_kind(page) == "page" then
+            page_hook_installed = install_hook(PAGE_PATH, "supported page BP_OnActivated",
+                ctx.lifecycle.on_widget_activated)
+                and install_hook(PAGE_DEACTIVATED_PATH, "supported page BP_OnDeactivated",
+                    ctx.lifecycle.on_widget_deactivated)
+        end
+    end
 
-        local ok, hook_id = pcall(function()
-            return ctx.runtime:register_hook(PAGE_ACTIVATED_PATH, function(context, ...)
-                local page = ctx.common.unwrap(context)
-                if ctx.lifecycle.activate_supported_page(page) then
-                    ctx.logging.log("Character Databank page BP_OnActivated; scheduling authoritative UI rebuild.")
-                    ctx.databank_ui.schedule_refresh("supported page BP_OnActivated", 120)
-                end
-            end)
+    local function render_ready(current)
+        local page, vm, resolve_err, stock, _, _, category =
+            ctx.databank_ui.resolve_live_page(current.category)
+        if page == nil or vm == nil then return false, tostring(resolve_err) end
+        if not ctx.common.same_object(page, current.page) then return false, "resolved page changed" end
+        local stack = select(1, ctx.common.read_property(stock, "BitReactorStackBox_25"))
+        local children = ctx.common.panel_child_count(stack)
+        if children == nil then return false, "stock row stack unavailable" end
+        local authority, authority_err = ctx.pool_authority.authoritative_pool_state(category)
+        if authority == nil then return false, tostring(authority_err) end
+        -- An empty Default pool is ready too (especially on a fresh Astromech tab).
+        if authority.default_custom.count > 0 and children == 0 then return false, "stock rows not ready" end
+        local extras = ctx.pool_authority.collect_extra_pool_vms(vm, authority)
+        for _, name in ipairs(authority.custom_order or {}) do
+            if extras[name] == nil then return false, "custom pool VM unavailable: " .. tostring(name) end
+        end
+        return true
+    end
+
+    local attempt
+    local function log_wait(current, reason)
+        if current.last_wait_reason == reason then return end
+        current.last_wait_reason = reason
+        ctx.logging.log("Databank initialization waiting (attempt " .. current.attempts .. "): " .. reason)
+    end
+
+    local function schedule_attempt(current, delay)
+        ctx.actions.api.run_group_after(GROUP, delay, function()
+            if request == current and ctx.runtime.alive then attempt(current) end
         end)
-
-        if ok and hook_id ~= nil then
-            page_hook_installed = true
-            ctx.logging.log("Hooked supported page BP_OnActivated (lazy-safe installer).")
-            return true, nil
-        end
-        return false, tostring(hook_id)
     end
 
-    local function live_pool_item_available()
-        local page, databank_vm = ctx.databank_ui.resolve_live_page()
-        if page == nil or databank_vm == nil then return false end
-        local stock_widget = select(1, ctx.common.read_property(page, "CharacterPool"))
-        return stock_widget ~= nil
-    end
-
-    local function live_character_row_available()
-        local page = select(1, ctx.databank_ui.resolve_live_page())
-        if page == nil then return false end
-        local stock_widget = select(1, ctx.common.read_property(page, "CharacterPool"))
-        if stock_widget == nil then return false end
-        local stack = select(1, ctx.common.read_property(stock_widget, "BitReactorStackBox_25"))
-        return ctx.common.panel_child_at(stack, 0) ~= nil
-    end
-
-    local function install_character_clicked_hook()
-        if character_click_hook_installed then return true, nil end
-        if not live_character_row_available() then
-            return false, "live Character row not loaded"
-        end
-        local ok, hook_id = pcall(function()
-            return ctx.runtime:register_hook(CHARACTER_CLICKED_PATH, function(context, ...)
-                local row = ctx.common.unwrap(context)
-                if row == nil then return end
-                local info = ctx.state.folder_ui_state.moveRowActions
-                    and ctx.state.folder_ui_state.moveRowActions[ctx.common.object_name(row)] or nil
-                if info == nil then return end
-
-                -- The transfer affordance is intentionally a lightweight row-owned
-                -- hit zone instead of a nested CommonUI UserWidget. This avoids the
-                        -- 20+ Blueprint button constructions that previously crashed while still
-                -- letting every row show its action persistently.
-                local over_transfer = false
-                local hitbox = ctx.common.unwrap(info.hitbox)
-                if hitbox ~= nil then
-                    pcall(function() over_transfer = hitbox:IsHovered() == true end)
-                end
-                if not over_transfer then return end
-
-                ctx.folder_ui.schedule_move_character_dialog(info, "row BP_OnClicked fallback")
-            end)
-        end)
-        if ok and hook_id ~= nil then
-            character_click_hook_installed = true
-            ctx.logging.log("Hooked Character Databank row BP_OnClicked for lightweight transfer hit-zones.")
-            return true, nil
-        end
-        return false, tostring(hook_id)
-    end
-
-    local function install_folder_clicked_hook()
-        if folder_click_hook_installed then return true, nil end
-        if not live_pool_item_available() then
-            return false, "live Character Pool widget not loaded"
-        end
-        local ok, hook_id = pcall(function()
-            return ctx.runtime:register_hook(FOLDER_CLICKED_PATH, function(context, ...)
-                -- Re-scan only after the native collapse/expand click has unwound.
-                -- This does not rebuild folders or rows; it merely decorates any row
-                -- UObjects the native folder regenerated while expanding.
-                ctx.actions.run_on_game_thread_after(80, function()
-                    if ctx.state.decorate_current_character_rows ~= nil then
-                        ctx.state.decorate_current_character_rows("folder expand/collapse")
-                    end
-                end)
-            end)
-        end)
-        if ok and hook_id ~= nil then
-            folder_click_hook_installed = true
-            ctx.logging.log("Hooked Character Databank folder BP_OnClicked for post-expand transfer decoration.")
-            return true, nil
-        end
-        return false, tostring(hook_id)
-    end
-
-    ctx.lifecycle.attempt_install_databank_lifecycle_hooks = nil
-
-    ctx.lifecycle.attempt_install_databank_lifecycle_hooks = function(reason)
-        if not lifecycle_retry_active then return end
-        lifecycle_retry_count = lifecycle_retry_count + 1
-
-        local had_master = master_hook_installed
-        local had_page = page_hook_installed
-        local had_character_click = character_click_hook_installed
-        local had_folder_click = folder_click_hook_installed
-        local master_ok, master_err = install_master_activation_hook()
-        local page_ok, page_err = install_page_activation_hook()
-        local character_ok, character_err = install_character_clicked_hook()
-        local folder_ok, folder_err = install_folder_clicked_hook()
-
-        if lifecycle_retry_count == 1 then
-            if not master_ok then ctx.logging.log("Master BP_OnActivated deferred: " .. tostring(master_err)) end
-            if not page_ok then ctx.logging.log("Page BP_OnActivated deferred: " .. tostring(page_err)) end
-            if not character_ok then ctx.logging.log("Character row click hook deferred: " .. tostring(character_err)) end
-            if not folder_ok then ctx.logging.log("Folder click hook deferred: " .. tostring(folder_err)) end
-        end
-
-        local installed_now = (not had_master and master_hook_installed)
-            or (not had_page and page_hook_installed)
-            or (not had_character_click and character_click_hook_installed)
-            or (not had_folder_click and folder_click_hook_installed)
-
-        if installed_now then
-            ctx.logging.log("Databank lifecycle hook(s) became available during " .. tostring(reason)
-                .. "; waiting for a fully initialized live Databank page before catch-up render.")
-            local catchup_attempts = 0
-            local function try_catchup()
-                catchup_attempts = catchup_attempts + 1
-                -- If BP_OnActivated or the native CommonUI fallback already queued a
-                -- render, a second catch-up pass would destroy/recreate every custom
-                -- pool immediately after the first. Earlier logs showed exactly that
-                -- duplicate cold-entry render. Let the activation-owned request win.
-                if ctx.databank_ui.refresh_generation > 0 then
-                    ctx.logging.log("Late-hook catch-up suppressed: activation render already scheduled.")
-                    ctx.actions.api.cancel_group(
-                        "lifecycle_hook_install",
-                        "activation render already scheduled"
-                    )
-                    return
-                end
-                local page, databank_vm = ctx.databank_ui.resolve_live_page()
-                if page ~= nil and databank_vm ~= nil then
-                    local stock_widget = select(1, ctx.common.read_property(page, "CharacterPool"))
-                    local stock_stack = stock_widget and select(1, ctx.common.read_property(stock_widget, "BitReactorStackBox_25")) or nil
-                    local stock_children = ctx.common.panel_child_count(stock_stack)
-                    local authority = ctx.pool_authority.authoritative_pool_state()
-                    local extra_vms = authority and ctx.pool_authority.collect_extra_pool_vms(databank_vm, authority) or nil
-                    local custom_ready = true
-                    if authority and extra_vms then
-                        for _, pool_name_value in ipairs(authority.custom_order or {}) do
-                            if extra_vms[pool_name_value] == nil then custom_ready = false; break end
-                        end
-                    end
-
-                    -- On a cold load the page UObject can exist before its stock
-                    -- CharacterPool has finished native/MDViewModel initialization.
-                    -- Wait until stock rows exist and all authoritative custom pool
-                    -- VMs are discoverable before the first catch-up render.
-                    if stock_stack ~= nil and stock_children ~= nil and stock_children > 0
-                        and authority ~= nil and custom_ready then
-                        ctx.logging.log("Late-hook catch-up page ready after " .. tostring(catchup_attempts)
-                            .. " attempt(s); stockRows=" .. tostring(stock_children)
-                            .. "; scheduling authoritative render.")
-                        ctx.databank_ui.schedule_refresh("late lifecycle hook install", 120)
-                        return
-                    end
-                end
-                if catchup_attempts < 20 then
-                    ctx.actions.api.run_group_after(
-                        "lifecycle_hook_install",
-                        100,
-                        try_catchup
-                    )
+    attempt = function(current)
+        current.attempts = current.attempts + 1
+        if current.entering then
+            current.entry_attempts = current.entry_attempts + 1
+            local master = current.master or ctx.common.find_first(MASTER_CLASS)
+            local visible, visibility_reason = master_is_visible(master)
+            local identity = visible and ctx.common.object_name(master) or nil
+            if identity ~= nil and identity == current.candidate_identity then
+                current.entering = false
+                current.anchor, current.master = master, master
+                ctx.logging.log("Databank submenu entry stabilized; initializing lifecycle hooks and pools.")
+            else
+                current.candidate_identity = identity
+                log_wait(current, visibility_reason or "confirming stable master: " .. identity)
+                if current.entry_attempts < MAX_ENTRY_ATTEMPTS then
+                    local delays = { 150, 150, 200, 300, 450, 650 }
+                    schedule_attempt(current, delays[current.entry_attempts + 1])
                 else
-                    ctx.logging.log("Late-hook catch-up skipped: live Databank page was not fully initialized; normal BP_OnActivated hook will render on entry.")
+                    ctx.logging.log("Databank submenu entry check expired: " .. current.last_wait_reason
+                        .. "; waiting for another entry event.")
+                    retire_request("Databank submenu did not open a stable master")
                 end
+                return
             end
-            ctx.actions.api.run_group_after(
-                "lifecycle_hook_install",
-                100,
-                try_catchup
-            )
         end
-
-        if master_hook_installed and page_hook_installed and character_click_hook_installed and folder_click_hook_installed then
-            lifecycle_retry_active = false
-            ctx.logging.log("Databank lifecycle hooks fully installed after " .. tostring(lifecycle_retry_count)
-                .. " attempt(s); stopping late-hook retry loop.")
+        -- These checks run only after activation unwinds, on an owned game-thread
+        -- action. Never retain the RemoteUnrealParam supplied to a native hook.
+        if not is_active(current.anchor) then
+            retire_request("Databank activation ended")
             return
         end
+        local master = current.master
+        if master == nil then master = ctx.common.find_first(MASTER_CLASS) end
+        if widget_kind(master) == "master" then current.master = master end
 
-        ctx.actions.api.run_group_after("lifecycle_hook_install", 400, function()
-            if lifecycle_retry_active then
-                ctx.lifecycle.attempt_install_databank_lifecycle_hooks("deferred Blueprint load")
+        local live_page = current.page
+        if current.master ~= nil then
+            if not is_active(current.master) then
+                retire_request("Databank master closed")
+                return
             end
-        end)
+            -- Check both categories independently: a missing/not-ready Custom page
+            -- must not prevent installing the shared page hook for Astromechs.
+            for _, category in ipairs({ ctx.categories.custom, ctx.categories.astromech }) do
+                local page = select(1, ctx.common.read_property(current.master, category.page))
+                if widget_kind(page) == "page" then
+                    live_page = page
+                    if current.page == nil and is_active(page) then
+                        current.page, current.category = page, category
+                    end
+                end
+            end
+        end
+        install_hooks(current.master, live_page)
+        if not current.render_queued then
+            local ready, reason = false, "no active supported page"
+            if current.page ~= nil and is_active(current.page) then
+                ready, reason = render_ready(current)
+            end
+            if ready then
+                ctx.categories.activate(current.page)
+                current.render_queued = true
+                -- One shared refresh handle coalesces native mutations with activation.
+                -- Keep ownership through dispatch so close/tab-switch cannot rebuild an
+                -- old page after this readiness action has finished.
+                ctx.databank_ui.schedule_refresh(current.reason, 0, function()
+                    return request == current and is_active(current.anchor)
+                        and is_active(current.master) and is_active(current.page)
+                end)
+            else
+                log_wait(current, reason)
+            end
+        end
+        if current.render_queued and master_hook_installed and page_hook_installed then return end
+        if current.attempts < MAX_ATTEMPTS then
+            schedule_attempt(current, 100)
+        else
+            ctx.logging.log("Databank activation initialization exhausted after " .. MAX_ATTEMPTS
+                .. " attempts; waiting for the next activation.")
+        end
+    end
+
+    function ctx.lifecycle.handle_strategy_submenu_click(button)
+        if not ctx.common.uobject_is_valid(button) then return false end
+        local identity = ctx.common.object_name(button)
+        if not identity:find(" /Engine/Transient.", 1, true)
+            or identity:sub(1, #"WBP_AnimatedSubMenuListButton_C ") ~= "WBP_AnimatedSubMenuListButton_C " then
+            return false
+        end
+        -- Strategy navigation retires pending entry/render work even when the
+        -- engine bypasses CommonUI's exposed DeactivateWidget UFunction.
+        retire_request("Strategy submenu navigation")
+        local label_widget = select(1, ctx.common.read_property(button, "ButtonTextBlock"))
+        local text = select(1, ctx.common.try_call(function() return label_widget:GetText() end))
+        local label = string.upper(ctx.common.text_value(text))
+        if not label:find("DATABANK", 1, true) then return true end
+
+        request = {
+            entering = true, entry_attempts = 0, attempts = 0,
+            render_queued = false, reason = "Character Databank submenu click",
+        }
+        ctx.logging.log("Character Databank submenu click detected; starting bounded entry check.")
+        schedule_attempt(request, 150)
+        return true
+    end
+
+    function ctx.lifecycle.on_widget_activated(context, reason)
+        local widget = ctx.common.unwrap(context)
+        local kind, category = widget_kind(widget)
+        if kind == nil then return end
+        -- Blueprint and CommonUI callbacks describe the same activation. Merge
+        -- master/page notifications without resetting the budget or queuing work.
+        if request ~= nil then
+            if kind == "master" and (request.master == nil or ctx.common.same_object(request.master, widget)) then
+                request.master = widget
+                return
+            elseif kind == "page" and (request.page == nil or ctx.common.same_object(request.page, widget))
+                and not (request.page == nil and request.attempts >= MAX_ATTEMPTS) then
+                request.page, request.category = widget, category
+                return
+            end
+            retire_request("Databank activation superseded")
+        end
+        request = {
+            anchor = widget, master = kind == "master" and widget or nil,
+            page = kind == "page" and widget or nil, category = category,
+            attempts = 0, render_queued = false, reason = reason,
+        }
+        -- Even when functions are resident, defer registration and readiness reads
+        -- until the native activation has returned and its widget tree can settle.
+        schedule_attempt(request, 120)
+    end
+
+    function ctx.lifecycle.on_widget_deactivated(context)
+        local widget = ctx.common.unwrap(context)
+        if widget_kind(widget) == nil or request == nil then return end
+        if ctx.common.same_object(widget, request.anchor)
+            or ctx.common.same_object(widget, request.master)
+            or ctx.common.same_object(widget, request.page) then
+            retire_request("Databank widget deactivated")
+        end
+    end
+
+    function ctx.lifecycle.recover_open_databank()
+        if request ~= nil then return end
+        -- Exactly one probe per script load recovers an already-open screen even
+        -- after a full Lua-state reload. Absence/closed widgets never arm retries.
+        local master = ctx.common.find_first(MASTER_CLASS)
+        if widget_kind(master) == "master" and master_is_visible(master) then
+            -- Visibility alone may survive while a reusable screen is closed.
+            -- Recovery needs an active supported tab, not a panel-parent test.
+            for _, category in ipairs({ ctx.categories.custom, ctx.categories.astromech }) do
+                local page = select(1, ctx.common.read_property(master, category.page))
+                if widget_kind(page) == "page" and is_active(page) then
+                    ctx.lifecycle.on_widget_activated(master, "Databank open during script load")
+                    ctx.lifecycle.on_widget_activated(page, "Databank open during script load")
+                    return
+                end
+            end
+        end
     end
 
     function ctx.lifecycle.hook_native_refresh(path, label)

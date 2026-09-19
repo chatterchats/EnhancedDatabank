@@ -1,6 +1,6 @@
 -- Enhanced Databank: folder ui.
 -- Initialized once per mod instance; shared references use explicit ctx fields.
--- Context: categories, actions, common, folder_icons, folder_ui, logging, pool_authority, pool_mutations, popup, runtime, state, widget_helpers.
+-- Context: categories, actions, common, folder_icons, folder_ui, lifecycle, logging, pool_authority, pool_mutations, popup, runtime, state, widget_helpers.
 return function(ctx)
     local function register_rename_folder_button(button, pool_vm, name, icon_canvas)
         button = ctx.common.unwrap(button)
@@ -585,6 +585,7 @@ return function(ctx)
                 "/Script/CommonUI.CommonButtonBase:HandleButtonClicked",
                 function(self)
                     local button = ctx.common.unwrap(self)
+                    if ctx.lifecycle.handle_strategy_submenu_click(button) then return end
                     local identity = button and button_identity(button) or nil
                     if identity == nil then return end
 

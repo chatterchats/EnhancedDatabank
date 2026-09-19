@@ -22,6 +22,12 @@ class VersionBumpTest(unittest.TestCase):
                 target = scratch / source.relative_to(ROOT)
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(source, target)
+            # A released checkout normally has an empty Unreleased section.
+            # Supply notes in the isolated fixture instead of depending on the
+            # current worktree having unreleased changes.
+            changelog_path = scratch / "CHANGELOG.md"
+            changelog_path.write_text(changelog_path.read_text().replace(
+                "## [Unreleased]", "## [Unreleased]\n\n### Fixed\n\n- Version test fixture.", 1))
             before = json.loads((scratch / relative / "modinfo.json").read_text())["version"]
             major, minor, patch = map(int, before.split("."))
             expected = f"{major}.{minor}.{patch + 1}"
@@ -35,6 +41,7 @@ class VersionBumpTest(unittest.TestCase):
             changelog = (scratch / "CHANGELOG.md").read_text()
             self.assertIn(f"## [{expected}]", changelog)
             self.assertIn("## [Unreleased]", changelog)
+            self.assertIn("- Version test fixture.", changelog.split(f"## [{expected}]", 1)[1])
 
 
 if __name__ == "__main__":

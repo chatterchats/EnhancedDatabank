@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.4]
+
+### Fixed
+
+- Remove the recurring startup widget searches responsible for periodic menu and
+  gameplay hitches. Databank initialization now starts on entry with bounded retries.
+- Restore automatic folder loading on first entry, including CommonUI stack-hosted
+  screens that have no panel parent or direct viewport attachment.
+- Coalesce entry events, cancel stale work on close or tab changes, and recover an
+  already-open Databank after script reload without duplicate hooks or rebuilds.
+- Report the specific readiness check when initialization is delayed or expires.
+
 ## [1.0.3]
 
 ### Fixed

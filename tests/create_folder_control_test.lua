@@ -50,6 +50,7 @@ local function context()
     local ctx = {
         state = {}, common = {}, widget_helpers = {}, folder_icons = {}, folder_ui = {},
         logging = { log = noop }, actions = {}, runtime = {}, categories = {}, popup = {},
+        lifecycle = { handle_strategy_submenu_click = function() return false end },
     }
     local common = ctx.common
     common.unwrap = function(value) return value end

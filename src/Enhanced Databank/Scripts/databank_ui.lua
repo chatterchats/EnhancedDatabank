@@ -12,6 +12,7 @@ return function(ctx)
 
     local refresh_action_handle = MakeActionHandle()
     local pending_refresh_reason = nil
+    local pending_refresh_guard = nil
 
     function ctx.databank_ui.resolve_live_page(category)
         local master = ctx.common.find_first("WBP_CharacterBank_Master_C")
@@ -342,11 +343,14 @@ return function(ctx)
         ctx.runtime:finish_action(refresh_action_handle)
         if not ctx.runtime.alive then return end
         local reason = pending_refresh_reason
+        local guard = pending_refresh_guard
         pending_refresh_reason = nil
+        pending_refresh_guard = nil
+        if guard ~= nil and not guard() then return end
         ctx.databank_ui.refresh_visible_pools(reason)
     end
 
-    ctx.databank_ui.schedule_refresh = function(reason, delay_ms)
+    ctx.databank_ui.schedule_refresh = function(reason, delay_ms, guard)
         -- Lifecycle hooks can finish installing while an activation-triggered render
         -- is already running. Coalesce immediately instead of arming another timer
         -- that may fire while the current renderer is inside a native Blueprint call.
@@ -358,6 +362,7 @@ return function(ctx)
 
         ctx.databank_ui.refresh_generation = ctx.databank_ui.refresh_generation + 1
         pending_refresh_reason = reason
+        pending_refresh_guard = guard
         ctx.runtime:track_action(refresh_action_handle)
         RetriggerableExecuteInGameThreadWithDelay(
             refresh_action_handle, delay_ms or 100, run_scheduled_refresh)
