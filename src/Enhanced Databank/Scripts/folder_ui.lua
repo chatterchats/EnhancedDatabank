@@ -771,9 +771,15 @@ return function(ctx)
 
     local function set_registered_action_icon_state(button, hovered)
         button = ctx.common.unwrap(button)
-        if button == nil then return end
+        if not ctx.common.uobject_is_valid(button) then return end
         local identity = button_identity(button)
-        if ctx.state.folder_ui_state.button ~= nil and ctx.common.same_object(ctx.state.folder_ui_state.button, button) then
+        -- These hooks receive every CommonUI button, including menus after map
+        -- travel has destroyed our screen. Match the live event's identity against
+        -- Lua-owned registrations before touching any retained Databank objects.
+        -- same_object(cachedButton, button) reads cachedButton:GetFullName() even
+        -- for unrelated events; pcall cannot protect that native stale-pointer read.
+        if ctx.state.folder_ui_state.buttons[identity] then
+            if not ctx.common.uobject_is_valid(ctx.state.folder_ui_state.iconCanvas) then return end
             ctx.folder_icons.set_folder_icon_color(
                 hovered and ctx.state.FOLDER_ICON_COLOR_HOVER or ctx.state.FOLDER_ICON_COLOR_NORMAL,
                 hovered and "hover" or "normal"
@@ -788,7 +794,7 @@ return function(ctx)
         if info.button ~= nil and not ctx.common.same_object(info.button, button) then return end
         if info.row ~= nil and not ctx.common.same_object(info.row, button) then return end
         local canvas = ctx.common.unwrap(info.iconCanvas)
-        if canvas == nil then return end
+        if not ctx.common.uobject_is_valid(canvas) then return end
         ctx.folder_icons.set_icon_canvas_color(canvas, hovered and ctx.state.FOLDER_ICON_COLOR_HOVER or ctx.state.FOLDER_ICON_COLOR_NORMAL)
         info.visualState = hovered and "hover" or "normal"
     end
