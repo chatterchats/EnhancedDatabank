@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.5]
+
+### Fixed
+
+- Extend the empty-Default action gate to characters in custom folders, for both
+  Custom Characters and Astromechs. Reconcile after native pool checks, selection
+  changes, and folder rendering; reject stale/deleted selections. In-game
+  confirmation of the cold-start reproduction is pending.
+- Stop unrelated menu hover events from reading a cached Create Folder button
+  after its Databank screen has been destroyed. Reject invalid hover contexts and
+  icon canvases before native access. The stale read is covered by a regression
+  test; confirmation against the reported in-game crash is still pending.
+
 ## [1.0.4]
 
 ### Fixed

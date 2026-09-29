@@ -325,6 +325,7 @@ return function(ctx)
             ctx.logging.log("Selected-character Move button pending: " .. tostring(move_button_err))
         end
 
+        ctx.page_actions.ensure(page)
         ctx.folder_ui.install_action_hover_hooks()
         ctx.logging.log("AUTO RENDER COMPLETE: scroll children=" .. tostring(ctx.common.panel_child_count(scroll))
             .. " | extra rendered=" .. tostring(rendered))

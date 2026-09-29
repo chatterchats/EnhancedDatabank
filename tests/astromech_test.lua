@@ -107,6 +107,7 @@ ctx.pool_mutations.perform_rename_folder(afvm, "Droid Folder", "Stale", astro)
 assert(#deleted == 1 and #renamed == 1, "stale folder VM mutated")
 vm.AstromechCharacterPoolViewModel = { afvm }
 -- The production renderer switches pages and only supplies that category's pools.
+ctx.page_actions = { ensure = function() end }
 ctx.folder_ui = {
     ensure_create_folder_control = function(p) ctx.state.folder_ui_state.page = p end,
     install_rename_button_on_folder = function(p, _, _, pool_vm)
