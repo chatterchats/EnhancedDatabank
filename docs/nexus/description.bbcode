@@ -1,0 +1,103 @@
+[b]Enhanced Databank[/b] adds native folder management to the Character Databank for your custom characters and Astromechs.
+Create folders, rename them, delete empty ones and move characters between them, all from inside the existing Databank. The controls are designed to match Zero Company's UI, while the game's built-in but mostly unused character-pool and persistence systems stay responsible for the underlying data.
+There's no external editor, no separate folder database and no manual save-file editing.
+
+[heading]Features[/heading]
+[list]
+[*][b]Create folders[/b] for your custom characters and Astromechs.[/*]
+[*][b]Rename[/b] player-created folders.[/*]
+[*][b]Delete[/b] empty player-created folders.[/*]
+[*][b]Move characters[/b] between folders in the same category.[/*]
+[*][b]Native persistence[/b]: folders are saved by the game itself and survive restarts.[/*]
+[*][b]Character Share integration[/b]: the two mods share one tidy action row.[/*]
+[/list]
+
+[heading]Using Enhanced Databank[/heading]
+Open the [b]Character Databank[/b] and select [b]Custom Characters[/b] or [b]Astromech[/b]. Each category has its own folders and its own [b]Player Created[/b] pool.
+
+[b]Creating a folder[/b]
+Use the new folder-plus button beside [b]Create New[/b]. Enter a unique folder name and choose [b]Create[/b]. The folder is created through the game's native Databank systems and appears in the character list.
+
+[b]Renaming a folder[/b]
+Player-created folders have a pencil button in their header. Select it, enter a new unique name and confirm. The default [b]Player Created[/b] pool can't be renamed.
+
+[b]Deleting a folder[/b]
+Use the trash button in a custom folder's header. Only empty folders can be deleted, so move any characters out first. The default [b]Player Created[/b] pool is protected and can't be deleted.
+
+[b]Moving a character[/b]
+Select a character and choose [b]Move[/b] beside the normal character actions. Enhanced Databank lists every valid destination in the same category: [b]Player Created[/b] and any other custom folder, except the one the character is already in. Characters can't be moved between Custom Characters and Astromechs.
+[b]Note:[/b] moving the last character out of a custom folder deletes that folder automatically. This is [b]not[/b] my design; it's how Zero Company natively handles empty pools.
+
+[heading]Requirements[/heading]
+[list]
+[*][b]Star Wars Zero Company[/b][/*]
+[*][url=https://www.nexusmods.com/starwarszerocompany/mods/9]UE4SS for Star Wars Zero Company[/url][/*]
+[/list]
+Enhanced Databank has been tested on the Steam release, game builds [b]24874058[/b] and [b]25134257[/b]. Other builds may work but should be treated as unverified. EA App compatibility has not been tested.
+
+[heading]Installation[/heading]
+[b]Mod manager[/b]
+Enhanced Databank includes metadata for the community mod managers:
+[list]
+[*][url=https://www.nexusmods.com/starwarszerocompany/mods/29]ZCOM Mod Manager[/url][/*]
+[*][url=https://www.nexusmods.com/starwarszerocompany/mods/121]Zero Company Mod Command[/url][/*]
+[/list]
+Install the downloaded ZIP through either one and make sure Enhanced Databank is enabled.
+
+[b]Manual installation[/b]
+Make sure UE4SS is installed and working, close the game, then extract the [b]Enhanced Databank[/b] folder into:
+[code]SWZeroCompany/Binaries/Win64/ue4ss/Mods/[/code]
+The finished installation should contain:
+[code]ue4ss/Mods/Enhanced Databank/Scripts/main.lua[/code]
+The package includes [b]enabled.txt[/b]. If your UE4SS setup doesn't pick it up, add this line to [b]ue4ss/Mods/mods.txt[/b]:
+[code]Enhanced Databank : 1[/code]
+
+[heading]Compatibility[/heading]
+[b]Character Share[/b]
+Enhanced Databank is specifically designed to work alongside [url=https://www.nexusmods.com/starwarszerocompany/mods/176]Character Share[/url]. When both mods are enabled:
+[list]
+[*][b]Create New[/b], [b]Import[/b] and [b]Create Folder[/b] share one properly spaced action row.[/*]
+[*][b]Move[/b] and [b]Share[/b] sit together beside the selected character's native actions.[/*]
+[*]Each button keeps its own hitbox, tooltip and native hover behavior.[/*]
+[*]Character Share imports go through the game's native character systems, so Enhanced Databank reconciles the resulting pools normally.[/*]
+[/list]
+[b]Other mods[/b]
+Enhanced Databank should coexist with most unrelated UE4SS mods. Mods that substantially replace or restructure the Character Databank UI may conflict with its controls or folder rendering.
+
+[heading]Troubleshooting[/heading]
+Enhanced Databank writes diagnostic information to [b]enhanced_databank.log[/b] in its mod folder, when that folder is writable. [b]UE4SS.log[/b] remains the primary startup and crash log.
+When reporting a problem, please include:
+[list]
+[*]Your game build[/*]
+[*]Your UE4SS version[/*]
+[*]Your other installed mods, especially other Databank mods[/*]
+[*]Steps to reproduce the problem[/*]
+[*][code]UE4SS.log[/code][/*]
+[*][code]enhanced_databank.log[/code] (when available)[/*]
+[/list]
+
+[heading]Why I Made This[/heading]
+Zero Company already contains much of the structure needed for multiple custom-character pools, but the normal Databank doesn't expose it as a complete, player-facing folder interface.
+As your custom characters pile up, the single Player Created list gets increasingly awkward to browse. Enhanced Databank turns the game's existing pool functionality into a practical organization system without moving character management outside the game or inventing a second save format.
+The goal was to make folders feel like they had always belonged in the Databank.
+
+[heading]Source Code and Issue Reports[/heading]
+Source, technical documentation and issue tracking are available on [url=https://github.com/chatterchats/EnhancedDatabank]GitHub[/url]. You can also post in the Bugs tab here on Nexus.
+
+[heading]Check Out My Other Mods[/heading]
+[list]
+[*][url=https://www.nexusmods.com/starwarszerocompany/mods/154]Fast Resonance[/url] — Speeds up the long Resonance presentations (Resonance Transfer, Shared Suffering and Unnatural Resilience) with a per-ability on/off switch and speed setting.[/*]
+[*][url=https://www.nexusmods.com/starwarszerocompany/mods/176]Character Share[/url] — Share and import custom characters and Astromechs right from the Character Databank using compact copy-and-paste codes.[/*]
+[*][url=https://www.nexusmods.com/starwarszerocompany/mods/314]Colors+[/url] — Pick any color, not just the preset swatches: a custom color picker with live preview for clothing, armor, hair, skin, makeup, tattoos and blaster paint.[/*]
+[/list]
+
+[heading]Shout-outs[/heading]
+[list]
+[*][url=https://forums.nexusmods.com/profile/1661783-gugarion/]Gugarion[/url] and the [url=https://discord.gg/qpBkjjKSRp][b]ZCom Modding Discord[/b][/url] — for the shared knowledge, testing, discussion and help that make increasingly strange Zero Company modding ideas possible.[/*]
+[*]The [url=https://github.com/UE4SS-RE/RE-UE4SS][b]UE4SS-RE team[/b][/url] — for UE4SS itself and the runtime scripting, object inspection, hooking and UI tooling that make mods like this possible.[/*]
+[*][url=https://www.nexusmods.com/profile/Vercadi]Vercadi[/url] — for creating and maintaining the [url=https://www.nexusmods.com/starwarszerocompany/mods/9]UE4SS build for Star Wars Zero Company[/url] that Enhanced Databank runs on.[/*]
+[*][url=https://www.nexusmods.com/profile/GoryBark]GoryBark[/url] — for reminding me that the Astromech tab existed and could probably do with folders too (and for copious amounts of bug reports).[/*]
+[/list]
+
+[heading]Icon Attribution[/heading]
+The folder, edit, delete and move glyphs follow the visual language of [url=https://tabler.io/icons]Tabler Icons[/url], an MIT-licensed open-source icon set. The live controls are drawn from native UMG primitives rather than loading external icon textures at runtime.
