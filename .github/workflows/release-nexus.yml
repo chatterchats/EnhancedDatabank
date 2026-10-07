@@ -141,6 +141,8 @@ jobs:
           PACKAGE_NAME: ${{ steps.release.outputs.package_name }}
         run: |
           mkdir -p dist
+          # MIT: copies keep the license notice.
+          cp LICENSE "src/Enhanced Databank/LICENSE"
           (cd src && zip -r "../dist/${PACKAGE_NAME}" "Enhanced Databank")
           ln "dist/${PACKAGE_NAME}" "Enhanced Databank v${{ steps.release.outputs.version }}.zip"
 

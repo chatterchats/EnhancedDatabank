@@ -2,6 +2,7 @@
 
 [![Nexus Mods](https://img.shields.io/badge/Nexus%20Mods-Enhanced%20Databank-d98f40)](https://www.nexusmods.com/starwarszerocompany/mods/209)
 [![UE4SS](https://img.shields.io/badge/framework-UE4SS-6f42c1)](https://github.com/UE4SS-RE/RE-UE4SS)
+[![License: MIT](https://img.shields.io/badge/license-MIT-2f7d4f)](LICENSE)
 
 Enhanced Databank is a UE4SS Lua mod for **Star Wars: Zero Company** that
 unlocks native custom-character folder management in the Character Databank.
@@ -202,8 +203,9 @@ a local ZIP for package-only checks.
    ./scripts/bump_version.py patch
    ```
 
-3. Run the tests. Package `src/Enhanced Databank`, keeping the top-level
-   `Enhanced Databank` folder, into `dist/Enhanced Databank V#.#.#.zip`, and
+3. Run the tests. Package `src/Enhanced Databank` with a copy of `LICENSE`,
+   keeping the top-level `Enhanced Databank` folder, into
+   `dist/Enhanced Databank V#.#.#.zip`, and
    check it with a mod manager and a clean manual install.
 4. Run **Release to Nexus Mods** from the **Actions** tab. It needs the
    `NEXUSMODS_API_KEY` repository secret.
@@ -213,7 +215,8 @@ The workflow:
 - requires `modinfo.json` and `zcom-mod.json` to hold the same `#.#.#`
   version, matching `local VERSION` in `main.lua`;
 - reads that version's notes from `CHANGELOG.md`;
-- packages `src/Enhanced Databank` as `Enhanced Databank V#.#.#.zip`; and
+- packages `src/Enhanced Databank`, with `LICENSE` added, as `Enhanced Databank V#.#.#.zip`;
+  and
 - uploads it to Nexus as `Enhanced Databank v#.#.#.zip`, finding the mod and
   its single active file through the API (exactly one active file is
   required).
@@ -239,6 +242,6 @@ The UMG-drawn action glyphs follow the visual language of
 
 ## License
 
-This repository does not currently include a project license. Unless one is
-added, the source remains subject to applicable copyright law. Third-party
-attributions remain governed by their respective licenses.
+[MIT](LICENSE) © 2026 Chatter Chats. The release ZIP includes the license.
+Third-party attributions remain governed by their own licenses (see
+`THIRD_PARTY_NOTICES.txt`).
