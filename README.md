@@ -1,197 +1,235 @@
 # Enhanced Databank
 
+[![Nexus Mods](https://img.shields.io/badge/Nexus%20Mods-Enhanced%20Databank-d98f40)](https://www.nexusmods.com/starwarszerocompany/mods/209)
 [![UE4SS](https://img.shields.io/badge/framework-UE4SS-6f42c1)](https://github.com/UE4SS-RE/RE-UE4SS)
 
 Enhanced Databank is a UE4SS Lua mod for **Star Wars: Zero Company** that
 unlocks native custom-character folder management in the Character Databank.
 
-It uses the game's existing character-pool manager and Databank view models.
-Folder identity, character ownership, persistence, and native empty-folder
-cleanup remain owned by the game; the mod does not maintain a parallel folder
-database or rewrite save files.
+It uses the game's own character-pool manager and Databank view models.
+Folder identity, character ownership, persistence and empty-folder cleanup
+stay with the game; the mod keeps no folder database of its own and never
+rewrites save files.
 
 ## Features
 
 - Create native custom-character folders from the Databank.
 - Rename player-created folders.
-- Delete empty player-created folders while protecting the default Player
-  Created pool.
-- Move the selected custom character between Player Created and custom folders.
-- Rebuild visible custom folders from authoritative native pool ownership.
-- Use compact native-styled controls with Tabler-inspired icons drawn entirely
+- Delete empty player-created folders; the default Player Created pool is
+  protected.
+- Move the selected character between Player Created and custom folders.
+- Rebuild the visible folders from the game's own pool ownership.
+- Compact, native-styled controls with Tabler-inspired icons drawn entirely
   from UMG primitives.
-- Cooperate with Character Share's compact Import action when both mods are
-  enabled.
+- Shares its action row with Character Share's compact **Import** button when
+  both mods are enabled.
 
-Enhanced Databank supports the **Custom Characters** and **Astromech** Databank
-pages. Each category has its own folders and Player Created pool; characters
-can only move between folders in the same category.
+Both the **Custom Characters** and **Astromech** pages are supported. Each has
+its own folders and Player Created pool; characters move only between folders
+of the same category.
+
+## Using Enhanced Databank
+
+Open the **Character Databank** and select **Custom Characters** or
+**Astromech**.
+
+- The folder-plus action beside **Create New** creates a folder.
+- The pencil action on a custom folder renames it.
+- The trash action deletes an empty custom folder.
+- To move a character, select it, choose **Move** beside the normal character
+  actions, and pick a destination.
+
+Only empty custom folders can be deleted. Moving the last character out of a
+custom folder may let the game remove the empty folder as part of its normal
+lifecycle.
 
 ## Requirements
 
 - **Star Wars: Zero Company**
-- A working [UE4SS](https://docs.ue4ss.com/dev/installation-guide.html)
-  installation for the game with the delayed game-thread action API
+- **UE4SS** for Zero Company, with the delayed game-thread action API
   (`ExecuteInGameThreadWithDelay`, `RetriggerableExecuteInGameThreadWithDelay`,
   `MakeActionHandle`, `CancelDelayedAction`, `IsValidDelayedActionHandle`,
-  `IsDelayedActionActive`, and `UnregisterHook`)
+  `IsDelayedActionActive` and `UnregisterHook`)
 
-Hot reload retains both hook IDs and cancels owned actions during teardown.
-When available, `ClearAllDelayedActions()` also clears this mod's leftover
-actions at startup; set `EnhancedDatabankClearDelayedActionsOnReload = false`
-before reloading to disable that optional sweep. Tracked-handle cancellation
-still runs. Existing buttons are adopted during Databank reinitialization.
-Restart the game once when upgrading from versions that did not retain hook
-IDs; those older registrations cannot be recovered by the new registry.
+| Steam build | Status |
+| --- | --- |
+| [25134257](https://steamdb.info/app/2075800/patchnotes/) | Tested |
+| 24874058 | Tested |
 
-The current metadata identifies Steam as the supported launcher and lists game
-builds `25134257` and `24874058` as tested. Later builds may work but should be
-treated as unverified until tested.
+Steam is the tested launcher. Later builds may work but are unverified until
+tested.
 
 ## Installation
 
-### ZCOM Mod Manager
+Download the release ZIP from
+[Nexus Mods](https://www.nexusmods.com/starwarszerocompany/mods/209), not
+GitHub's source-code archive. The ZIP keeps `Enhanced Databank` as its
+top-level folder and includes metadata for both mod managers below.
 
-Install the Enhanced Databank release ZIP normally. The archive retains
-`Enhanced Databank` as its top-level mod folder and includes metadata for ZCOM
-Mod Manager and Zero Company Mod Command.
+### With a mod manager
 
-### Manual UE4SS installation
+- **[Zero Mod Manager](https://github.com/stellamarislabs/zero-mod-manager)**
+  (formerly ZCOM Mod Manager): open **Install**, drop in the ZIP, then
+  confirm Enhanced Databank is enabled under **Mods**.
+- **[Zero Company Mod Command](https://github.com/EnvianMods/ZeroCompanyModCommand)**:
+  drag the ZIP into the **Hangar Bay** and check that it's enabled.
 
-1. Install and verify UE4SS for Star Wars: Zero Company.
-2. Extract the `Enhanced Databank` folder into:
+### By hand
 
-   ```text
-   SWZeroCompany/Binaries/Win64/ue4ss/Mods/
-   ```
+1. Install UE4SS for Star Wars: Zero Company.
+2. Extract the `Enhanced Databank` folder into
+   `SWZeroCompany/Binaries/Win64/ue4ss/Mods/`.
+3. Check that `ue4ss/Mods/Enhanced Databank/Scripts/main.lua` exists. Install
+   the whole `Scripts` folder; `main.lua` loads the other modules.
+4. If your UE4SS setup ignores the packaged `enabled.txt`, add
+   `Enhanced Databank : 1` to `ue4ss/Mods/mods.txt`.
 
-3. Confirm this entry point exists:
+### Updating and uninstalling
 
-   ```text
-   ue4ss/Mods/Enhanced Databank/Scripts/main.lua
-   ```
+Close the game, then install the new ZIP the same way (by hand, copy it over
+the old folder). To uninstall, disable or remove it in your mod manager, or
+delete the `Enhanced Databank` folder.
 
-   Install the entire `Scripts` directory, not just `main.lua`; the entry point
-   loads the accompanying runtime modules.
+## Compatibility
 
-4. If your UE4SS setup does not honor the packaged `enabled.txt`, add:
-
-   ```text
-   Enhanced Databank : 1
-   ```
-
-   to `ue4ss/Mods/mods.txt`.
-
-## Using Enhanced Databank
-
-Open **Character Databank** and select **Custom Characters** or **Astromech**.
-
-- Select the folder-plus action beside **Create New** to create a folder.
-- Use the pencil action on a custom folder to rename it.
-- Use the trash action to delete an empty custom folder.
-- Select a character, choose **Move** beside the normal character actions, and
-  select a destination pool.
-
-Only empty custom folders can be deleted. The default Player Created pool is
-protected. Moving the final character out of a custom folder may allow the game
-to remove the empty folder as part of its native lifecycle.
-
-## Character Share compatibility
-
-Enhanced Databank and Character Share recognize each other's top action row.
-When both are installed, **Create New**, compact **Import**, and compact
-**Create Folder** occupy one flat row with separate hitboxes and normal native
-spacing. The selected-character **Move** and **Share** actions also coexist in
-the native detail action row.
+- **[Character Share](https://www.nexusmods.com/starwarszerocompany/mods/176):**
+  designed to work together. **Create New**, compact **Import** and compact
+  **Create Folder** share one flat row with separate hitboxes and native
+  spacing; **Move** and **Share** share the selected-character row.
 
 ## Troubleshooting
 
-Enhanced Databank writes detailed diagnostics to `enhanced_databank.log` beside
-the installed mod when that location is writable. `UE4SS.log` remains the
-primary startup and crash log.
-
-Support shortcuts:
+Enhanced Databank writes details to `enhanced_databank.log` beside the
+installed mod (when that folder is writable). `UE4SS.log` remains the main
+startup and crash log.
 
 | Shortcut | Action |
 | --- | --- |
-| `Shift+F7` | Rebuild folders from authoritative native pool ownership |
-| `Shift+F8` | Remove Enhanced Databank UI and restore the stock presentation |
+| `Shift+F7` | Rebuild folders from the game's own pool ownership |
+| `Shift+F8` | Remove Enhanced Databank's UI and restore the stock Databank |
 
-When reporting a reproducible issue, include the game build, UE4SS version,
-other Databank mods, reproduction steps, and the relevant logs.
+### Reporting a bug
+
+Open an [issue](https://github.com/chatterchats/EnhancedDatabank/issues) with:
+
+- the game build and UE4SS version;
+- other Databank mods installed;
+- the steps to reproduce it; and
+- `enhanced_databank.log` and `UE4SS.log`.
+
+`scripts/collect_debug_logs.sh` gathers the logs and the latest crash reports
+(`--crashes COUNT`, 3 by default).
 
 ## Repository layout
 
 ```text
 .
-├── .github/workflows/release-nexus.yml
+├── .github/workflows/release-nexus.yml   # manual Nexus release
 ├── CHANGELOG.md
 ├── README.md
-├── scripts/bump_version.py
-└── src/Enhanced Databank/
-    ├── Assets/
-    ├── Scripts/
-    ├── README.txt
-    ├── THIRD_PARTY_NOTICES.txt
-    ├── enabled.txt
-    ├── modinfo.json
-    └── zcom-mod.json
+├── Zero_Company_Databank_Modding_Guide.md  # historical Databank investigation
+├── docs/
+│   ├── architecture.md                   # modules, reload rules, local checks
+│   ├── lifecycle-validation.md           # entry-driven initialization
+│   ├── practical-ue4ss-ui-modding-notes.md
+│   ├── nexus/description.bbcode          # mod page description
+│   └── ...                               # investigations
+├── media/                                # banner and main image
+├── scripts/
+│   ├── bump_version.py                   # version bump + changelog promotion
+│   ├── collect_debug_logs.sh
+│   └── nexus_changelog.py                # a release's notes as Nexus text
+├── src/Enhanced Databank/                # the distributable mod folder
+│   ├── Assets/
+│   ├── Scripts/
+│   ├── README.txt                        # player readme
+│   ├── THIRD_PARTY_NOTICES.txt
+│   ├── enabled.txt
+│   ├── modinfo.json                      # Zero Company Mod Command
+│   └── zcom-mod.json                     # Zero Mod Manager
+└── tests/                                # LuaJIT and Python tests
 ```
 
-`src/Enhanced Databank` is the distributable mod directory. There is no build
-or bundle step.
-
-The consolidated UI findings are in
-[Practical UE4SS UI Modding Notes](docs/practical-ue4ss-ui-modding-notes.md),
-covering Character Share, Enhanced Databank, Colors+, and related UI work.
-The [historical Databank investigation](Zero_Company_Databank_Modding_Guide.md)
-retains the detailed experiments and stability history.
+`src/Enhanced Databank` is the distributable folder; there is no build or
+bundle step. [Practical UE4SS UI Modding Notes](docs/practical-ue4ss-ui-modding-notes.md)
+collects the UI findings shared with Character Share, Colors+ and related
+work; the [Databank investigation](Zero_Company_Databank_Modding_Guide.md)
+keeps the detailed experiments and stability history.
 
 ## Development
 
-Copy or link `src/Enhanced Databank` into the game's `ue4ss/Mods` directory,
-then test changes on a supported game build. A Lua syntax check is useful, but
-in-game verification is required because the mod interacts with generated
-Blueprint classes and runtime UMG widget trees.
+1. Clone the repository and copy or link `src/Enhanced Databank` into the
+   game's `ue4ss/Mods` folder.
+2. Run the tests from the repository root:
 
-See [Script architecture](docs/architecture.md) for module responsibilities,
-reload rules, and local test commands. [Lifecycle validation](docs/lifecycle-validation.md)
-documents entry-driven initialization and its in-game verification status.
+   ```bash
+   for t in tests/*_test.lua; do luajit "$t" "src/Enhanced Databank/Scripts" || break; done
+   for t in tests/*_test.py; do python3 "$t" || break; done
+   ```
 
-For changes to folders or movement, test at minimum:
+3. Test in game on a supported build: the mod works on generated Blueprint
+   classes and live UMG widget trees that the tests only fake.
+
+See [Script architecture](docs/architecture.md) for module responsibilities
+and [Lifecycle validation](docs/lifecycle-validation.md) for entry-driven
+initialization and its in-game status. For folder or move changes, test at
+least:
 
 - cold entry into both Databank categories and switching between them;
 - Default to custom, custom to Default, and custom to custom moves;
-- moving the final character out of a folder;
-- create, rename, and delete persistence after a restart in both categories;
+- moving the last character out of a folder;
+- create, rename and delete persistence after a restart, in both categories;
 - switching categories while a folder dialog or deferred move is pending;
 - coexistence with Character Share; and
 - repeated Databank entry without duplicate controls.
 
+**Hot reload.** The mod keeps its hook IDs and cancels its own delayed
+actions on teardown. When available, `ClearAllDelayedActions()` also clears
+leftovers at startup; set `EnhancedDatabankClearDelayedActionsOnReload = false`
+before reloading to skip that sweep. Existing buttons are adopted when the
+Databank reinitializes. Restart the game once when upgrading from versions
+that didn't keep hook IDs.
+
 ## Releasing
 
-The manually dispatched **Release to Nexus Mods** workflow validates metadata,
-packages the mod, and uploads it to Nexus Mods. Dispatching it publishes a release;
-use a local ZIP for package-only validation.
+The manually run **Release to Nexus Mods** workflow publishes a release; build
+a local ZIP for package-only checks.
 
-1. Add release notes beneath `## [Unreleased]` in
-   [`CHANGELOG.md`](CHANGELOG.md).
-2. Run the version helper with `patch`, `minor`, or `major`:
+1. Add release notes under `## [Unreleased]` in [`CHANGELOG.md`](CHANGELOG.md).
+2. Bump the version with `patch`, `minor` or `major`:
 
    ```bash
    ./scripts/bump_version.py patch
    ```
 
-3. Run the [local checks](docs/architecture.md#local-checks). Package only
-   `src/Enhanced Databank`, retaining the top-level `Enhanced Databank` directory,
-   into `dist/Enhanced Databank V#.#.#.zip`. Keep generated archives under `dist/`.
-4. Verify the ZIP in ZCOM Mod Manager and with a clean manual installation.
-5. When ready to publish, configure the `NEXUSMODS_API_KEY` repository secret and
-   run the workflow from **Actions**. The workflow resolves this project's Nexus
-   mod ID and active file through the API; it requires exactly one active file.
+3. Run the tests. Package `src/Enhanced Databank`, keeping the top-level
+   `Enhanced Databank` folder, into `dist/Enhanced Databank V#.#.#.zip`, and
+   check it with a mod manager and a clean manual install.
+4. Run **Release to Nexus Mods** from the **Actions** tab. It needs the
+   `NEXUSMODS_API_KEY` repository secret.
 
-The workflow packages `src/Enhanced Databank` as
-`Enhanced Databank V#.#.#.zip`.
+The workflow:
+
+- requires `modinfo.json` and `zcom-mod.json` to hold the same `#.#.#`
+  version, matching `local VERSION` in `main.lua`;
+- reads that version's notes from `CHANGELOG.md`;
+- packages `src/Enhanced Databank` as `Enhanced Databank V#.#.#.zip`; and
+- uploads it to Nexus as `Enhanced Databank v#.#.#.zip`, finding the mod and
+  its single active file through the API (exactly one active file is
+  required).
+
+## Contributing
+
+Bug reports and focused pull requests are welcome through
+[Issues](https://github.com/chatterchats/EnhancedDatabank/issues) and
+[Pull Requests](https://github.com/chatterchats/EnhancedDatabank/pulls). Keep
+folder identity, ownership and persistence with the game's native systems.
+
+## Support
+
+- Downloads: [Nexus Mods](https://www.nexusmods.com/starwarszerocompany/mods/209)
+- Changes: [`CHANGELOG.md`](CHANGELOG.md)
+- Bugs and requests: [GitHub Issues](https://github.com/chatterchats/EnhancedDatabank/issues)
 
 ## Attribution
 
