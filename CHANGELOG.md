@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Format release notes as single-line, category-prefixed plain-text entries when
+  publishing to Nexus Mods, while retaining the readable Keep a Changelog source.
+
 ## [1.0.5]
 
 ### Fixed

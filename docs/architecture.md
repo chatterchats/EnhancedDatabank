@@ -51,6 +51,7 @@ luajit tests/lifecycle_test.lua "src/Enhanced Databank/Scripts"
 luajit tests/refresh_test.lua "src/Enhanced Databank/Scripts"
 luajit tests/astromech_test.lua "src/Enhanced Databank/Scripts"
 python3 tests/version_bump_test.py
+python3 tests/nexus_changelog_test.py
 ```
 
 These exercise the actual scheduler, registry, UI factories, bootstrap/reload
