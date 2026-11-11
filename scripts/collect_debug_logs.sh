@@ -43,13 +43,13 @@ done
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(dirname -- "$script_dir")"
-volume_root="$(dirname -- "$(dirname -- "$repo_root")")"
 
-game_root="${ZCOM_GAME_ROOT:-$volume_root/Games/STAR WARS Zero Company (2026)}"
+game_root="${ZCOM_GAME_ROOT:-/run/media/chats/e0057d4a-fe46-43eb-a837-db51979c500f/Games/NonSteam/STAR WARS Zero Company (2026)}"
+prefix_root="${ZCOM_PREFIX_ROOT:-/run/media/chats/e0057d4a-fe46-43eb-a837-db51979c500f/Games/Prefixes/proton/Zero Company}"
 install_dir="${ZCOM_INSTALL_DIR:-$game_root/Star Wars Zero Company}"
 win64_dir="$install_dir/SWZeroCompany/Binaries/Win64"
 ue4ss_log="$win64_dir/ue4ss/UE4SS.log"
-crash_root="$game_root/prefix/drive_c/users/steamuser/AppData/Local/SWZeroCompany/Saved/Crashes"
+crash_root="$prefix_root/drive_c/users/steamuser/AppData/Local/SWZeroCompany/Saved/Crashes"
 debug_dir="$repo_root/debug"
 
 probe_candidates=(
