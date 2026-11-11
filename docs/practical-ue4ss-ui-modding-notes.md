@@ -10,7 +10,7 @@ Updated September 18, 2026 against Character Share **v1.0.3 plus its unreleased 
 
 The Character Share narrative is retained in sections 1–27, with qualifications where later work changed the recommendation. Sections 28–34 cover preview ownership and diagnostics; sections 35–49 add the Databank, discovery, input, reload, and performance findings. Sections 50–51 provide a test matrix and source index.
 
-Generated class paths, numbered widget fields, enum values, and delayed-action capabilities are specific to the inspected game/UE4SS builds. Enhanced Databank's metadata lists game builds `25134257` and `24874058`; its historical discovery guide records `++ProjectBruno+Stable-CL-196985` and UE4SS `v3.0.1 Beta #0`. Those identifiers are not a compatibility guarantee for every feature below.
+Generated class paths, numbered widget fields, enum values, and delayed-action capabilities are specific to the inspected game/UE4SS builds. Enhanced Databank's metadata lists game builds `25898267` and `26445778`; its historical discovery guide records `++ProjectBruno+Stable-CL-196985` and UE4SS `v3.0.1 Beta #0`. Those identifiers are not a compatibility guarantee for every feature below.
 
 Evidence labels used in the additions:
 
