@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Format release notes as single-line, category-prefixed plain-text entries when
   publishing to Nexus Mods, while retaining the readable Keep a Changelog source.
+- Mark game builds 25898267 and 26445778 as tested in the mod manager
+  metadata, replacing the older builds.
 
 ## [1.0.5]
 
