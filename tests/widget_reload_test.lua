@@ -1,6 +1,6 @@
 -- Exercise real UI factories; surviving controls must never reach the clone path.
--- Run: luajit tests/widget_reload_test.lua "<Scripts directory>"
-local scripts = assert(arg[1])
+-- Run from the repo root: make test T=widget_reload_test
+local scripts = arg[1] or "src/Enhanced Databank/Scripts"
 local function object(name)
     return { name = name, IsValid = function() return true end,
         GetParent = function() return {} end }

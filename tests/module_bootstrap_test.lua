@@ -1,7 +1,7 @@
 -- Load every production factory through main.lua, then repeat same-state reload.
--- Run: luajit tests/module_bootstrap_test.lua "<Scripts directory>"
+-- Run from the repo root: make test T=module_bootstrap_test
 -- LuaJIT stubs codec (Lua 5.3 bit operators); Lua 5.4 loads every real helper.
-local scripts = assert(arg[1])
+local scripts = arg[1] or "src/Enhanced Databank/Scripts"
 package.path = scripts .. "/?.lua;" .. package.path
 if _VERSION == "Lua 5.1" then package.loaded.codec = {} end
 local hooks, keys, commands, queue, cancelled = {}, {}, {}, {}, {}

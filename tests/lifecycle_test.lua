@@ -1,7 +1,7 @@
--- Run: luajit tests/lifecycle_test.lua "src/Enhanced Databank/Scripts"
+-- Run from the repo root: make test T=lifecycle_test
 -- Real bootstrap, registry, scheduler, categories, readiness, authority and
 -- renderer; only engine/native widget construction boundaries are mocked.
-local scripts = assert(arg[1])
+local scripts = arg[1] or "src/Enhanced Databank/Scripts"
 local hooks, registrations, failures, queue, objects = {}, {}, {}, {}, {}
 local now, next_id, searches, builds = 0, 0, 0, 0
 local ACTIVATE = "/Script/CommonUI.CommonActivatableWidget:ActivateWidget"

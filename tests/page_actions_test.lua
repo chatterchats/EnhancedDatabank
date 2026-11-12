@@ -1,5 +1,5 @@
--- Run: luajit tests/page_actions_test.lua "src/Enhanced Databank/Scripts"
-local scripts = assert(arg[1])
+-- Run from the repo root: make test T=page_actions_test
+local scripts = arg[1] or "src/Enhanced Databank/Scripts"
 local hooks, logs = {}, {}
 local ctx = { page_actions = {}, state = { folder_ui_state = {} },
     categories = {}, pool_authority = {}, runtime = {}, common = {},

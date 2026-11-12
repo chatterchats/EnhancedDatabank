@@ -1,6 +1,6 @@
 -- Exercise the real installer and widget traversal with unnamed Blueprint clones.
--- Run: luajit tests/create_folder_control_test.lua "<Scripts directory>"
-local scripts = assert(arg[1])
+-- Run from the repo root: make test T=create_folder_control_test
+local scripts = arg[1] or "src/Enhanced Databank/Scripts"
 local function noop() end
 FName = function(value) return value end
 FText = function(value) return value end

@@ -6,7 +6,7 @@ crash_count=3
 
 usage() {
     cat <<'EOF'
-Usage: scripts/collect_debug_logs.sh [--crashes COUNT]
+Usage: tools/collect_debug_logs.sh [--crashes COUNT]
 
 Collect the current UE4SS and Enhanced Databank logs plus the newest Unreal
 crash reports into the repository's ignored debug directory.
@@ -50,7 +50,7 @@ install_dir="${ZCOM_INSTALL_DIR:-$game_root/Star Wars Zero Company}"
 win64_dir="$install_dir/SWZeroCompany/Binaries/Win64"
 ue4ss_log="$win64_dir/ue4ss/UE4SS.log"
 crash_root="$prefix_root/drive_c/users/steamuser/AppData/Local/SWZeroCompany/Saved/Crashes"
-debug_dir="$repo_root/debug"
+debug_dir="$repo_root/dev/debug"
 
 probe_candidates=(
     "$win64_dir/ue4ss/Mods/Enhanced_Databank/enhanced_databank.log"

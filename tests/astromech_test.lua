@@ -1,6 +1,6 @@
 -- Exercise native category boundaries and deferred operations with mock UObjects.
--- Run: luajit tests/astromech_test.lua "src/Enhanced Databank/Scripts"
-local scripts = assert(arg[1])
+-- Run from the repo root: make test T=astromech_test
+local scripts = arg[1] or "src/Enhanced Databank/Scripts"
 local objects, deferred, notices, created, moved, renamed, deleted = {}, {}, {}, {}, {}, {}, {}
 local ctx = { common = {}, categories = {}, state = {}, pool_authority = {}, pool_mutations = {},
     databank_ui = {}, popup = {}, widget_helpers = {}, runtime = {}, actions = {},

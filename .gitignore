@@ -1,6 +1,14 @@
-/debug/
 /dist/
-/*.zip
 *.log
 __pycache__/
-*.pyc
+*.py[cod]
+.DS_Store
+Thumbs.db
+*.swp
+*.tmp
+
+# Written by MXM while the mod is linked into the game
+values.lua
+
+# Logs and crash reports gathered by tools/collect_debug_logs.sh
+/dev/debug/

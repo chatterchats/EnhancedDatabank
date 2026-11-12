@@ -1,5 +1,5 @@
--- Run from repository root: luajit tests/reload_runtime_test.lua "<Scripts directory>"
-local scripts = assert(arg[1], "pass the mod Scripts directory")
+-- Run from the repo root: make test T=reload_runtime_test
+local scripts = arg[1] or "src/Enhanced Databank/Scripts"
 local Runtime = assert(loadfile(scripts .. "/hook_registry.lua"))()
 local hooks, cancelled, keys, consoles = {}, {}, {}, {}
 local clear_count, next_id = 0, 0

@@ -1,6 +1,6 @@
--- Run: luajit tests/hover_lifecycle_test.lua "src/Enhanced Databank/Scripts"
+-- Run from the repo root: make test T=hover_lifecycle_test
 -- Use the real identity helpers: pointer-only mocks hide stale GetFullName calls.
-local scripts = assert(arg[1])
+local scripts = arg[1] or "src/Enhanced Databank/Scripts"
 local function noop() end
 ExecuteInGameThreadWithDelay, RetriggerableExecuteInGameThreadWithDelay = noop, noop
 MakeActionHandle, CancelDelayedAction = noop, noop

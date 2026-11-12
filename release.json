@@ -1,0 +1,10 @@
+{
+  "name": "EnhancedDatabank",
+  "title": "Enhanced Databank",
+  "version": "1.0.6",
+  "nexusModId": 209,
+  "zipLayout": "folder",
+  "shipped": [
+    {"folder": "Enhanced Databank", "kind": "ue4ss"}
+  ]
+}

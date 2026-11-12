@@ -1301,7 +1301,7 @@ Click handling produced another useful distinction:
 
 Keep glyphs hit-test-invisible when a real native button is supposed to own input. Use existing CommonUI hover/unhover events for icon state instead of a fast recurring row-hover poll. Do not replay per-row generated context handlers just to repair a tooltip: the later Enhanced Databank renderer explicitly disabled those replays after stability failures.
 
-Sources: [selected Move control](../src/Enhanced%20Databank/Scripts/selected_move_button.lua), [current renderer](../src/Enhanced%20Databank/Scripts/databank_ui.lua), and the historical [Databank investigation](../Zero_Company_Databank_Modding_Guide.md).
+Sources: [selected Move control](../src/Enhanced%20Databank/Scripts/selected_move_button.lua), [current renderer](../src/Enhanced%20Databank/Scripts/databank_ui.lua), and the historical [Databank investigation](databank-modding-guide.md).
 
 ---
 
@@ -1443,7 +1443,7 @@ Compare these counts and markers in an affected session:
 
 Do not conflate this with the fixed Default-row visibility bug or the fixed duplicate Create Folder control. Preflighting all folder/VM matches before replacing existing UI, then using a bounded retry for incomplete data, is a proposed improvement. The older fast unlimited rebuild loop is explicitly a failed approach.
 
-Evidence: recorded investigation in the task **Fix character creation in empty root**, current [renderer](../src/Enhanced%20Databank/Scripts/databank_ui.lua), and [debug log](../debug/UE4SS.log). The investigation did not establish the present status of remote issue reports.
+Evidence: recorded investigation in the task **Fix character creation in empty root**, current [renderer](../src/Enhanced%20Databank/Scripts/databank_ui.lua), and [debug log](../dev/debug/UE4SS.log). The investigation did not establish the present status of remote issue reports.
 
 ---
 
@@ -1524,7 +1524,7 @@ This revision reconciles the supplied Character Share/Colors+ notes with local s
 | [Enhanced Databank changelog](../CHANGELOG.md) | Released implementation changes through v1.0.3 |
 | [Enhanced Databank architecture](architecture.md) | Module responsibilities, reload wiring, category and row reconciliation tests |
 | [Enhanced Databank scripts](../src/Enhanced%20Databank/Scripts/) and [tests](../tests/) | Current behavior and local regression coverage |
-| [Historical Databank guide](../Zero_Company_Databank_Modding_Guide.md) | Failed experiments and empirical native boundaries; some early recipes are superseded here |
+| [Historical Databank guide](databank-modding-guide.md) | Failed experiments and empirical native boundaries; some early recipes are superseded here |
 | [Colors+ practical notes](../../Colors%2B/docs/practical-ue4ss-ui-modding-notes.md) | Companion revision corresponding to the supplied guide |
 | [Colors+ changelog](../../Colors%2B/CHANGELOG.md) and [skin persistence findings](../../Colors%2B/docs/skin-persistence-findings.md) | Versioned target, ownership, and save/reopen observations |
 | [Colors+ lifetime review](../../Colors%2B/docs/lifetime-guide-review-2026-09-17.md) | Root attachment, re-entrant callbacks, replacement after setters, and diagnostic limits |

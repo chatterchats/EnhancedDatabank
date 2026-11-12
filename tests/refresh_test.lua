@@ -1,5 +1,5 @@
--- Run: luajit tests/refresh_test.lua "src/Enhanced Databank/Scripts"
-local scripts = assert(arg[1])
+-- Run from the repo root: make test T=refresh_test
+local scripts = arg[1] or "src/Enhanced Databank/Scripts"
 local queue, handles, calls = {}, 0, {}
 function MakeActionHandle() handles = handles + 1; return handles end
 function RetriggerableExecuteInGameThreadWithDelay(handle, delay, callback)

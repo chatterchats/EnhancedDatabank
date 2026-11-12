@@ -1,0 +1,1 @@
+Unlocks the game's own custom-character folders in the Character Databank: create, rename and delete folders and move characters between them, for custom characters and astromechs.
